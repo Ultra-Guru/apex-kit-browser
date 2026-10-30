@@ -380,9 +380,10 @@ class BrowserEngine private constructor(
 
             // v2.0.0：JS 控制台捕获（console.* 与未捕获异常都经此回调上报，
             // Chromium 把 Uncaught 错误以 ERROR 级 console 消息送达）。
-            // level() 返回的就是 "ERROR"/"WARNING" 等字符串（非枚举）。
+            // API 形状（AOSP 源核实）：messageLevel() 返回 MessageLevel 枚举，
+            // .name 即 "ERROR"/"WARNING"/"LOG"…（无 level() 方法）。
             override fun onConsoleMessage(cm: android.webkit.ConsoleMessage?): Boolean {
-                consoleCapture.record(cm?.level() ?: "LOG", cm?.message(), cm?.sourceId(), cm?.lineNumber() ?: 0)
+                consoleCapture.record(cm?.messageLevel()?.name ?: "LOG", cm?.message(), cm?.sourceId(), cm?.lineNumber() ?: 0)
                 return true
             }
 
