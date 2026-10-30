@@ -242,7 +242,7 @@ class FilterList internal constructor(
 object DefaultFilterLists {
 
     /** 起步列表（EasyList 格式文本，可直接 [FilterList.parse]）。 */
-    const val TRACKER_CORE: String = """
+    val TRACKER_CORE: String = """
 ! apex browser starter filter list — conservative tracker/ad domains
 ! (subset of EasyList/EasyPrivacy public entries; intentionally minimal-FP)
 ||doubleclick.net^
@@ -317,7 +317,7 @@ object DefaultFilterLists {
 ||adscale.de^
 ||adtech.de^
 ||advertising.com^
-||aol.com^$script
+||aol.com^
 ||advertising.yahoo.com^
 ||gemini.yahoo.com^
 ||ads.yahoo.com^
@@ -339,10 +339,10 @@ object DefaultFilterLists {
 ||medianet.com^
 ||invitemedia.com^
 ||flurry.com^
-||crashlytics.com^$script
-||newrelic.com^$script
+||crashlytics.com^
+||newrelic.com^
 ||nr-data.net^
-||bugsnag.com^$script
+||bugsnag.com^
 ||raygun.io^
 ||logrocket.com^
 ||logrocket.io^
@@ -354,7 +354,7 @@ object DefaultFilterLists {
 ||clicktale.net^
 ||sessioncam.com^
 ||ipify.org^
-||ipinfo.io^$script
+||ipinfo.io^
 ||deviceatlas.com^
 ||52north.com^
 ||akstat.io^
