@@ -494,6 +494,15 @@ class BrowserEngine private constructor(
     }
 
     /**
+     * 清空会话内浏览历史（v1.9.0，兑现 v1.7.0 已知取舍的 TODO：「引擎
+     * recentHistory 的内存 ArrayDeque 无清空 API」—— clearBrowsingData 的
+     * histories scope 只清 WebView 原生历史，地址栏联想源是本队列）。
+     */
+    fun clearRecentHistory() {
+        history.clear()
+    }
+
+    /**
      * 关闭全部标签（chrome 层「关闭全部」命令；逐个销毁与 closeTab 同路）。
      * 引擎全部标签被关后回到无活动页（activeTabId=0），下次 navigate 自动建页。
      */

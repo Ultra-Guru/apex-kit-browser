@@ -7,6 +7,7 @@ browser-core :: class BookmarkCore(initial: List<Bookmark> = emptyList())
 browser-core :: class BookmarkCore.AddResult
 browser-core :: class BookmarkFolder(val name: String, val count: Int,)
 browser-core :: class BrowserScript.ExtractMode(val value: String)
+browser-core :: class BrowserScript.StorageOp(val wire: String)
 browser-core :: class CircuitBreaker(private val failureThreshold: Int = 5, private val resetTimeoutMs: Long = 30_000,)
 browser-core :: class CircuitBreaker.State
 browser-core :: class CircuitOpenException(message: String) : Exception(message)
@@ -15,15 +16,25 @@ browser-core :: class DomParser.SnapshotStrategy
 browser-core :: class DownloadLedger(initial: List<DownloadLedgerEntry> = emptyList())
 browser-core :: class DownloadLedgerEntry(val dmId: Long, val fileName: String, val url: String, val mimeType: String? = null, val enqueuedAt: Long = 0L,)
 browser-core :: class ElementNotFoundException(message: String) : Exception(message)
+browser-core :: class FormDescriptor(val action: String =, val method: String =, val id: String =, val name: String =, val fields: List<FormFieldDescriptor> = emptyList(), val truncatedFields: Boolean = false, val submitRefs: List<String> = emptyList(),)
+browser-core :: class FormFieldDescriptor(val ref: String, val visible: Boolean = true, val tag: String, val type: String, val name: String =, val id: String =, val required: Boolean = false, val disabled: Boolean = false, val readOnly: Boolean = false, val label: String =, val placeholder: String =, val hasValue: Boolean = false, val valuePreview: String =, val checked: Boolean? = null, val optionCount: Int = 0, val options: List<FormOption> = emptyList(),)
+browser-core :: class FormOption(val value: String, val text: String, val selected: Boolean = false,)
+browser-core :: class FormReport(val totalForms: Int = 0, val forms: List<FormDescriptor> = emptyList(), val orphans: List<FormFieldDescriptor> = emptyList(),)
+browser-core :: class FrameInfo(val src: String =, val name: String =, val title: String =, val width: Int = 0, val height: Int = 0, val sandbox: String =, val sameOrigin: Boolean = false,)
+browser-core :: class FrameReport(val total: Int = 0, val truncated: Boolean = false, val frames: List<FrameInfo> = emptyList(),)
+browser-core :: class NavigationTiming(val dns: Int = 0, val tcp: Int = 0, val ttfb: Int = 0, val domInteractive: Int = 0, val domContentLoaded: Int = 0, val loadEvent: Int = 0, val transferSize: Long = 0, val encodedBodySize: Long = 0, val decodedBodySize: Long = 0, val type: String =, val redirectCount: Int = 0,)
 browser-core :: class PageClassifier.PageTypeInfo(val type: String, val hint: String, val signals: Map<String, Int>,)
 browser-core :: class PageSnapshot(val url: String, val title: String, val scrollY: Int, val scrollHeight: Int, val viewportHeight: Int, val interactiveCount: Int, val domSummary: String, val interactiveElements: List<DomElement>, val truncated: Boolean = false, val totalCandidateCount: Int = 0, val timestampMs: Long = 0, val dialogNotice: String? = null,)
+browser-core :: class PerformanceReport(val navigation: NavigationTiming? = null, val resourceCount: Int = 0, val buckets: List<ResourceBucket> = emptyList(), val slowest: List<SlowResource> = emptyList(),)
 browser-core :: class PermanentActionException(message: String) : Exception(message)
 browser-core :: class ReaderBlock(val kind: ReaderBlockKind, val level: Int = 0, val text: String, val alt: String =, val srcSummary: String =, val index: Int = 0,)
 browser-core :: class ReaderBlockKind(val wire: String)
 browser-core :: class ReaderChapter(val level: Int, val title: String, val blockIndex: Int,)
 browser-core :: class ReaderDocument(val url: String, val title: String, val siteName: String =, val byline: String =, val publishedTime: String =, val blocks: List<ReaderBlock> = emptyList(), val chapters: List<ReaderChapter> = emptyList(), val capturedAtMs: Long = 0L,)
 browser-core :: class Rect(val x: Int, val y: Int, val width: Int, val height: Int)
+browser-core :: class ResourceBucket(val type: String, val count: Int = 0, val bytes: Long = 0, val maxDuration: Int = 0,)
 browser-core :: class RetryPolicy(val maxRetries: Int = 3, val initialDelayMs: Long = 500, val backoffMultiplier: Double = 2.0, val maxDelayMs: Long = 5000, val retryableExceptions: Set<Class<out Throwable>> = setOf(ElementNotFoundException::class.java, java.util.concurrent.TimeoutException::class.java, WebViewNotRespondingException::class.java,),)
+browser-core :: class SlowResource(val url: String, val duration: Int, val bytes: Long = 0, val type: String =,)
 browser-core :: class WebViewNotRespondingException(message: String) : Exception(message)
 browser-core :: fun BatchActionValidator.check(actions: List<BatchAction>): String?
 browser-core :: fun Bookmark .fallbackTitle(): String
@@ -45,9 +56,11 @@ browser-core :: fun BookmarkCore.touch(id: String): Boolean
 browser-core :: fun BrowserScript.elementAtPointJs(x: Float, y: Float, targetRef: String): String
 browser-core :: fun BrowserScript.elementTextJs(ref: String): String
 browser-core :: fun BrowserScript.extractContentJs(mode: String): String
+browser-core :: fun BrowserScript.formDetectJs(): String
 browser-core :: fun BrowserScript.highlightJs(ref: String, color: String =): String
 browser-core :: fun BrowserScript.hoverJs(ref: String): String
 browser-core :: fun BrowserScript.inputTextJs(ref: String, text: String): String
+browser-core :: fun BrowserScript.layoutCollectJs(maxElements: Int): String
 browser-core :: fun BrowserScript.locateByFuzzyJs(tag: String, textContains: String, newRef: String): String
 browser-core :: fun BrowserScript.locateJs(textContains: String, tag: String, limit: Int): String
 browser-core :: fun BrowserScript.networkIdleJs(): String
@@ -63,6 +76,7 @@ browser-core :: fun BrowserScript.selectorCountJs(selector: String): String
 browser-core :: fun BrowserScript.selectorPresentJs(selector: String): String
 browser-core :: fun BrowserScript.setNativeValueJs(ref: String, text: String, append: Boolean): String
 browser-core :: fun BrowserScript.snapshotJs(strategy: DomParser.SnapshotStrategy = DomParser.SnapshotStrategy.INTERACTIVE_ONLY): String
+browser-core :: fun BrowserScript.storageJs(op: StorageOp, key: String =, value: String =, session: Boolean = false,): String
 browser-core :: fun BrowserScript.textContainsJs(text: String): String
 browser-core :: fun CircuitBreaker.acquire()
 browser-core :: fun CircuitBreaker.onFailure()
@@ -78,10 +92,20 @@ browser-core :: fun DownloadLedger.register(dmId: Long, fileName: String, url: S
 browser-core :: fun DownloadLedger.remove(dmId: Long): Boolean
 browser-core :: fun DownloadLedgerCodec.decode(raw: String?): List<DownloadLedgerEntry>
 browser-core :: fun DownloadLedgerCodec.encode(entries: List<DownloadLedgerEntry>): String
+browser-core :: fun FormDescriptor.headerLine(): String
+browser-core :: fun FormFieldDescriptor.summaryLine(): String
+browser-core :: fun FormReport.toAgentText(): String
+browser-core :: fun FormReportParser.parse(raw: String?): FormReport?
+browser-core :: fun FrameInfo.summaryLine(): String
+browser-core :: fun FrameReport.toAgentText(): String
+browser-core :: fun FrameReportParser.parse(raw: String?): FrameReport?
 browser-core :: fun JsLiteral.string(value: String): String
+browser-core :: fun LayoutAnalysis.formatReport(payload: String): String
 browser-core :: fun PageClassifier.classify(signals: Map<String, Int>): PageTypeInfo
 browser-core :: fun PageClassifier.fromJson(rawJson: String): PageTypeInfo
 browser-core :: fun PageClassifier.parseSignals(rawJson: String): Map<String, Int>
+browser-core :: fun PerformanceReport.toAgentText(): String
+browser-core :: fun PerformanceReportParser.parse(raw: String?): PerformanceReport?
 browser-core :: fun ReaderParser.parse(rawJson: String?): ReaderDocument?
 browser-core :: fun ReaderParser.plainText(doc: ReaderDocument, includeOutline: Boolean = true): String
 browser-core :: fun UrlCleaner.clean(url: String): String
@@ -97,8 +121,12 @@ browser-core :: object BookmarkFolderNames
 browser-core :: object BrowserScript
 browser-core :: object DomParser
 browser-core :: object DownloadLedgerCodec
+browser-core :: object FormReportParser
+browser-core :: object FrameReportParser
 browser-core :: object JsLiteral
+browser-core :: object LayoutAnalysis
 browser-core :: object PageClassifier
+browser-core :: object PerformanceReportParser
 browser-core :: object ReaderParser
 browser-core :: object UrlCleaner
 browser-core :: val BatchAction.append : Boolean
@@ -129,16 +157,26 @@ browser-core :: val BrowserScript.CURRENT_URL_JS : String
 browser-core :: val BrowserScript.ExtractMode.value : String
 browser-core :: val BrowserScript.FORCE_DARK_JS : String
 browser-core :: val BrowserScript.FORCE_DARK_OFF_JS : String
+browser-core :: val BrowserScript.FRAME_LIST_JS : String
+browser-core :: val BrowserScript.MAX_FIELDS_PER_FORM : Int
+browser-core :: val BrowserScript.MAX_FORMS : Int
+browser-core :: val BrowserScript.MAX_FRAMES : Int
 browser-core :: val BrowserScript.MAX_NETWORK_LOG_ENTRIES : Int
+browser-core :: val BrowserScript.MAX_ORPHAN_FIELDS : Int
 browser-core :: val BrowserScript.MAX_SCROLL_PX : Int
+browser-core :: val BrowserScript.MAX_SELECT_OPTIONS : Int
+browser-core :: val BrowserScript.MAX_STORAGE_KEYS : Int
+browser-core :: val BrowserScript.MAX_STORAGE_VALUE_CHARS : Int
 browser-core :: val BrowserScript.NETWORK_MONITOR_JS : String
 browser-core :: val BrowserScript.PAGE_GEOMETRY_JS : String
 browser-core :: val BrowserScript.PAGE_TYPE_JS : String
+browser-core :: val BrowserScript.PERFORMANCE_METRICS_JS : String
 browser-core :: val BrowserScript.POST_ACTION_PROBE_JS : String
 browser-core :: val BrowserScript.READER_DOCUMENT_JS : String
 browser-core :: val BrowserScript.SELECTION_TEXT_JS : String
 browser-core :: val BrowserScript.SNAPSHOT_MAX_ELEMENTS : Int
 browser-core :: val BrowserScript.STEALTH_JS : String
+browser-core :: val BrowserScript.StorageOp.wire : String
 browser-core :: val CircuitBreaker.currentState : State get()
 browser-core :: val DomElement.attributes : Map<String
 browser-core :: val DomElement.bid : Int
@@ -156,6 +194,57 @@ browser-core :: val DownloadLedgerEntry.enqueuedAt : Long
 browser-core :: val DownloadLedgerEntry.fileName : String
 browser-core :: val DownloadLedgerEntry.mimeType : String?
 browser-core :: val DownloadLedgerEntry.url : String
+browser-core :: val FormDescriptor.action : String
+browser-core :: val FormDescriptor.fields : List<FormFieldDescriptor>
+browser-core :: val FormDescriptor.id : String
+browser-core :: val FormDescriptor.method : String
+browser-core :: val FormDescriptor.name : String
+browser-core :: val FormDescriptor.submitRefs : List<String>
+browser-core :: val FormDescriptor.truncatedFields : Boolean
+browser-core :: val FormFieldDescriptor.checked : Boolean?
+browser-core :: val FormFieldDescriptor.disabled : Boolean
+browser-core :: val FormFieldDescriptor.hasValue : Boolean
+browser-core :: val FormFieldDescriptor.id : String
+browser-core :: val FormFieldDescriptor.label : String
+browser-core :: val FormFieldDescriptor.name : String
+browser-core :: val FormFieldDescriptor.optionCount : Int
+browser-core :: val FormFieldDescriptor.options : List<FormOption>
+browser-core :: val FormFieldDescriptor.placeholder : String
+browser-core :: val FormFieldDescriptor.readOnly : Boolean
+browser-core :: val FormFieldDescriptor.ref : String
+browser-core :: val FormFieldDescriptor.required : Boolean
+browser-core :: val FormFieldDescriptor.tag : String
+browser-core :: val FormFieldDescriptor.type : String
+browser-core :: val FormFieldDescriptor.valuePreview : String
+browser-core :: val FormFieldDescriptor.visible : Boolean
+browser-core :: val FormOption.selected : Boolean
+browser-core :: val FormOption.text : String
+browser-core :: val FormOption.value : String
+browser-core :: val FormReport.forms : List<FormDescriptor>
+browser-core :: val FormReport.hasAnyField : Boolean
+browser-core :: val FormReport.orphans : List<FormFieldDescriptor>
+browser-core :: val FormReport.totalForms : Int
+browser-core :: val FrameInfo.height : Int
+browser-core :: val FrameInfo.name : String
+browser-core :: val FrameInfo.sameOrigin : Boolean
+browser-core :: val FrameInfo.sandbox : String
+browser-core :: val FrameInfo.src : String
+browser-core :: val FrameInfo.title : String
+browser-core :: val FrameInfo.width : Int
+browser-core :: val FrameReport.frames : List<FrameInfo>
+browser-core :: val FrameReport.total : Int
+browser-core :: val FrameReport.truncated : Boolean
+browser-core :: val NavigationTiming.decodedBodySize : Long
+browser-core :: val NavigationTiming.dns : Int
+browser-core :: val NavigationTiming.domContentLoaded : Int
+browser-core :: val NavigationTiming.domInteractive : Int
+browser-core :: val NavigationTiming.encodedBodySize : Long
+browser-core :: val NavigationTiming.loadEvent : Int
+browser-core :: val NavigationTiming.redirectCount : Int
+browser-core :: val NavigationTiming.tcp : Int
+browser-core :: val NavigationTiming.transferSize : Long
+browser-core :: val NavigationTiming.ttfb : Int
+browser-core :: val NavigationTiming.type : String
 browser-core :: val PageClassifier.PageTypeInfo.hint : String
 browser-core :: val PageClassifier.PageTypeInfo.signals : Map<String
 browser-core :: val PageClassifier.PageTypeInfo.type : String
@@ -171,6 +260,11 @@ browser-core :: val PageSnapshot.totalCandidateCount : Int
 browser-core :: val PageSnapshot.truncated : Boolean
 browser-core :: val PageSnapshot.url : String
 browser-core :: val PageSnapshot.viewportHeight : Int
+browser-core :: val PerformanceReport.buckets : List<ResourceBucket>
+browser-core :: val PerformanceReport.navigation : NavigationTiming?
+browser-core :: val PerformanceReport.resourceCount : Int
+browser-core :: val PerformanceReport.slowest : List<SlowResource>
+browser-core :: val PerformanceReport.totalBytes : Long
 browser-core :: val ReaderBlock.alt : String
 browser-core :: val ReaderBlock.index : Int
 browser-core :: val ReaderBlock.kind : ReaderBlockKind
@@ -195,8 +289,16 @@ browser-core :: val Rect.height : Int
 browser-core :: val Rect.width : Int
 browser-core :: val Rect.x : Int
 browser-core :: val Rect.y : Int
+browser-core :: val ResourceBucket.bytes : Long
+browser-core :: val ResourceBucket.count : Int
+browser-core :: val ResourceBucket.maxDuration : Int
+browser-core :: val ResourceBucket.type : String
 browser-core :: val RetryPolicy.backoffMultiplier : Double
 browser-core :: val RetryPolicy.initialDelayMs : Long
 browser-core :: val RetryPolicy.maxDelayMs : Long
 browser-core :: val RetryPolicy.maxRetries : Int
 browser-core :: val RetryPolicy.retryableExceptions : Set<Class<out Throwable>>
+browser-core :: val SlowResource.bytes : Long
+browser-core :: val SlowResource.duration : Int
+browser-core :: val SlowResource.type : String
+browser-core :: val SlowResource.url : String

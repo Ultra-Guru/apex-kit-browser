@@ -954,6 +954,404 @@ object BrowserScript {
         })();
         """.trimIndent()
 
+    // ═══════════════════════════════════════════════════════════════════
+    //  v1.9.0 Playwright 对标脚本（storage 访问 / 表单检测 / 性能指标 /
+    //  iframe 枚举 / 布局采集）。
+    //
+    //  注入口径不变：外部字符串（key/value）一律 [JsLiteral.string]，
+    //  整型参数以无大括号 `$name` 注入（数值字面量，非外部字符串），
+    //  无 Promise（等待语义归 Kotlin 侧）。
+    // ═══════════════════════════════════════════════════════════════════
+
+    /** Storage 读取回传的值截断上限（超长偏好/缓存值如实标注，不静默截断）。 */
+    const val MAX_STORAGE_VALUE_CHARS: Int = 32_000
+
+    /** Storage keys 回传的键数上限。 */
+    const val MAX_STORAGE_KEYS: Int = 500
+
+    /** Storage 操作类型（[storageJs] 的 op 字面量来源 —— Kotlin 枚举控制，非外部输入）。 */
+    enum class StorageOp(val wire: String) {
+        GET("get"), SET("set"), REMOVE("remove"),
+        KEYS("keys"), SIZE("size"), CLEAR("clear")
+    }
+
+    /**
+     * Web Storage 访问（v1.9.0，Playwright `storage_state` 对标的读写字面面）。
+     *
+     * 六操作统一信封 `{ok, ...}`；被禁用（引擎关 domStorage 或隐私模式）/
+     * 超配额（QUOTA_EXCEEDED）时 `ok=false` 且带 error 文案，不抛撕裂 JS。
+     * 读值按 [MAX_STORAGE_VALUE_CHARS] 截断并如实标注（length/truncated），
+     * keys 按 [MAX_STORAGE_KEYS] 截断并回传 total。`$store` 为 Kotlin 侧
+     * 计算后的 `localStorage` / `sessionStorage` 标识符字面量（非外部字符串）。
+     */
+    fun storageJs(
+        op: StorageOp,
+        key: String = "",
+        value: String = "",
+        session: Boolean = false,
+    ): String {
+        val store = if (session) "sessionStorage" else "localStorage"
+        return """
+        (function(){
+          try {
+            var store = $store;
+            var op = ${JsLiteral.string(op.wire)};
+            if (op === 'size') {
+              return JSON.stringify({ ok: true, count: store.length });
+            }
+            if (op === 'keys') {
+              var ks = [];
+              for (var i = 0; i < store.length && ks.length < $MAX_STORAGE_KEYS; i++) {
+                ks.push(store.key(i));
+              }
+              return JSON.stringify({ ok: true, keys: ks, total: store.length, truncated: store.length > ks.length });
+            }
+            if (op === 'clear') {
+              store.clear();
+              return JSON.stringify({ ok: true });
+            }
+            if (op === 'get') {
+              var v = store.getItem(${JsLiteral.string(key)});
+              if (v === null || v === undefined) return JSON.stringify({ ok: true, exists: false });
+              var t = String(v);
+              return JSON.stringify({ ok: true, exists: true, value: t.slice(0, $MAX_STORAGE_VALUE_CHARS), length: t.length, truncated: t.length > $MAX_STORAGE_VALUE_CHARS });
+            }
+            if (op === 'set') {
+              store.setItem(${JsLiteral.string(key)}, ${JsLiteral.string(value)});
+              return JSON.stringify({ ok: true });
+            }
+            if (op === 'remove') {
+              store.removeItem(${JsLiteral.string(key)});
+              return JSON.stringify({ ok: true });
+            }
+            return JSON.stringify({ ok: false, error: 'unknown op' });
+          } catch(e) {
+            return JSON.stringify({ ok: false, error: String((e && e.message) || e).slice(0, 160) });
+          }
+        })();
+        """.trimIndent()
+    }
+
+    /** 表单检测：单个表单字段数上限（超限如实标注 fieldCount/truncatedFields）。 */
+    const val MAX_FIELDS_PER_FORM: Int = 40
+
+    /** 表单检测：孤儿字段（无 form 包裹的 SPA 散字段）上限。 */
+    const val MAX_ORPHAN_FIELDS: Int = 30
+
+    /** 表单检测：单 select 回传选项数上限。 */
+    const val MAX_SELECT_OPTIONS: Int = 12
+
+    /** 表单检测：表单数上限。 */
+    const val MAX_FORMS: Int = 10
+
+    /**
+     * 表单结构检测（v1.9.0）：发现页面全部 `<form>` + 孤儿字段（无 form 包裹
+     * 的 SPA 散字段），逐字段回传可直接驱动的 [ref]。
+     *
+     * **ref 与快照同源**：hash 函数 / semanticKey 公式 / 可见性剪枝 /
+     * 撞键 `#n` 去重与 [snapshotJs] 逐字一致 —— Agent 拿到表单报告即可直接
+     * 构造 `batchExecute` 动作（click/input/select），无需先跑一次快照对齐。
+     * 不可见字段（display:none / 零尺寸，快照本就不给 ref）同样**不编造 ref**
+     * —— 照常回传字段信息（`visible:false`、ref 留空），与快照契约一致。
+     *
+     * 安全语义：`type=password` 字段**不回传值**（只报 hasValue），Agent 可
+     * 检测「已记住密码」但读不走内容。选项、label、required/disabled/readonly
+     * 均回传，值预览截断 80 字符。
+     */
+    fun formDetectJs(): String {
+        return """
+        (function(){
+          function hash(str){
+            var h = 0;
+            for (var i=0;i<str.length;i++){ var c = str.charCodeAt(i); h = ((h<<5)-h)+c; h|=0; }
+            return 'r_' + (Math.abs(h)>>>0).toString(36);
+          }
+          var seen = {};
+          function refOf(el){
+            var style = window.getComputedStyle(el);
+            var rect = el.getBoundingClientRect();
+            var visible = style.display !== 'none' && style.visibility !== 'hidden'
+                  && parseFloat(style.opacity) > 0.05
+                  && rect.width > 0 && rect.height > 0;
+            var text = (el.innerText || el.value || el.placeholder || '').replace(/\s+/g,' ').trim().slice(0, 120);
+            var role = el.getAttribute('role') || el.tagName.toLowerCase();
+            var semanticKey = role + '|' + text + '|' + el.tagName + '|' + Math.round(rect.top + window.scrollY);
+            var ref = hash(semanticKey);
+            var n = seen[semanticKey] || 0;
+            seen[semanticKey] = n + 1;
+            if (n > 0) ref = ref + '#' + (n + 1);
+            if (visible) el.setAttribute('data-apex-hash', ref);
+            return { ref: visible ? ref : '', visible: visible, rect: rect };
+          }
+          function labelOf(el){
+            try {
+              if (el.labels && el.labels.length) {
+                return (el.labels[0].innerText || '').replace(/\s+/g,' ').trim().slice(0, 60);
+              }
+              var wrap = el.closest ? el.closest('label') : null;
+              if (wrap) return (wrap.innerText || '').replace(/\s+/g,' ').trim().slice(0, 60);
+            } catch(e) {}
+            return '';
+          }
+          function fieldOf(el){
+            var tag = el.tagName.toLowerCase();
+            var type = (el.getAttribute('type') || (tag === 'select' || tag === 'textarea' ? tag : 'text')).toLowerCase();
+            var r = refOf(el);
+            var f = {
+              ref: r.ref, visible: r.visible, tag: tag, type: type,
+              name: el.getAttribute('name') || '',
+              id: el.id || '',
+              required: !!el.required, disabled: !!el.disabled, readOnly: !!el.readOnly,
+              label: labelOf(el), placeholder: el.getAttribute('placeholder') || '',
+              hasValue: false, valuePreview: '', checked: null, optionCount: 0, options: []
+            };
+            if (type === 'password') {
+              f.hasValue = !!el.value;
+            } else if (tag === 'select') {
+              f.hasValue = el.selectedIndex >= 0;
+              if (el.selectedIndex >= 0 && el.options[el.selectedIndex]) {
+                f.valuePreview = String(el.options[el.selectedIndex].value || '').slice(0, 80);
+              }
+              f.optionCount = el.options.length;
+              var opts = [];
+              for (var i = 0; i < el.options.length && opts.length < $MAX_SELECT_OPTIONS; i++) {
+                opts.push({ value: String(el.options[i].value || '').slice(0, 80), text: (el.options[i].text || '').replace(/\s+/g,' ').trim().slice(0, 60), selected: i === el.selectedIndex });
+              }
+              f.options = opts;
+            } else if (type === 'checkbox' || type === 'radio') {
+              f.checked = !!el.checked;
+              f.hasValue = !!el.value;
+            } else {
+              f.hasValue = !!el.value;
+              f.valuePreview = String(el.value || '').slice(0, 80);
+            }
+            return f;
+          }
+          try {
+            var forms = [];
+            var formEls = document.querySelectorAll('form');
+            for (var i = 0; i < formEls.length && forms.length < $MAX_FORMS; i++) {
+              var fe = formEls[i];
+              var fields = [];
+              var controls = fe.querySelectorAll('input,select,textarea,button');
+              for (var j = 0; j < controls.length; j++) {
+                if (fields.length >= $MAX_FIELDS_PER_FORM) break;
+                var c = controls[j];
+                if (c.tagName === 'BUTTON' || (c.tagName === 'INPUT' && (c.getAttribute('type') || '').toLowerCase() === 'submit')) continue;
+                fields.push(fieldOf(c));
+              }
+              var submitRefs = [];
+              for (var j = 0; j < controls.length && submitRefs.length < 3; j++) {
+                var c = controls[j];
+                var t = (c.getAttribute('type') || '').toLowerCase();
+                if (c.tagName === 'BUTTON' && (t === 'submit' || t === '' || t === 'button')) {
+                  var r = refOf(c);
+                  if (r.visible) submitRefs.push(r.ref);
+                }
+              }
+              forms.push({
+                action: (fe.getAttribute('action') || '').slice(0, 200),
+                method: (fe.getAttribute('method') || 'get').toLowerCase(),
+                id: fe.id || '', name: fe.getAttribute('name') || '',
+                fieldCount: fields.length,
+                truncatedFields: controls.length > $MAX_FIELDS_PER_FORM,
+                submitRefs: submitRefs,
+                fields: fields
+              });
+            }
+            var orphans = [];
+            var all = document.querySelectorAll('input,select,textarea');
+            for (var i = 0; i < all.length; i++) {
+              if (orphans.length >= $MAX_ORPHAN_FIELDS) break;
+              var el = all[i];
+              if (el.closest && el.closest('form')) continue;
+              orphans.push(fieldOf(el));
+            }
+            return JSON.stringify({ v: 1, totalForms: formEls.length, forms: forms, orphanCount: orphans.length, orphans: orphans });
+          } catch(e) {
+            return JSON.stringify(null);
+          }
+        })();
+        """.trimIndent()
+    }
+
+    /**
+     * 性能指标采集（v1.9.0，Playwright `performance` 对标）：Navigation Timing
+     * 关键里程碑（DNS / TCP / TTFB / DOMContentLoaded / Load）+ Resource Timing
+     * 按 initiatorType 聚合（数量 / 传输字节 / 最慢）+ 最慢资源 Top 8。
+     * 纯表达式 IIFE，只读 performance API，无 DOM 变更、无网络。
+     */
+    val PERFORMANCE_METRICS_JS: String
+        get() = """
+        (function(){
+          try {
+            if (!window.performance || !performance.getEntriesByType) return JSON.stringify(null);
+            var nav = performance.getEntriesByType('navigation')[0] || null;
+            var res = performance.getEntriesByType('resource') || [];
+            var buckets = {};
+            for (var i = 0; i < res.length; i++) {
+              var r = res[i];
+              var k = r.initiatorType || 'other';
+              if (!buckets[k]) buckets[k] = { count: 0, bytes: 0, maxDuration: 0 };
+              buckets[k].count++;
+              buckets[k].bytes += (r.transferSize || 0);
+              if (r.duration > buckets[k].maxDuration) buckets[k].maxDuration = r.duration;
+            }
+            var slow = res.slice().sort(function(a,b){ return b.duration - a.duration; }).slice(0, 8).map(function(r){
+              return { url: String(r.name || '').slice(0, 140), duration: Math.round(r.duration), bytes: r.transferSize || 0, type: r.initiatorType || 'other' };
+            });
+            var n = nav ? {
+              dns: Math.round(nav.domainLookupEnd - nav.domainLookupStart),
+              tcp: Math.round(nav.connectEnd - nav.connectStart),
+              ttfb: Math.round(nav.responseStart - nav.startTime),
+              domInteractive: Math.round(nav.domInteractive - nav.startTime),
+              domContentLoaded: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
+              loadEvent: Math.round(nav.loadEventEnd - nav.startTime),
+              transferSize: nav.transferSize || 0,
+              encodedBodySize: nav.encodedBodySize || 0,
+              decodedBodySize: nav.decodedBodySize || 0,
+              type: nav.type || '',
+              redirectCount: nav.redirectCount || 0
+            } : null;
+            return JSON.stringify({ v: 1, navigation: n, resourceCount: res.length, buckets: buckets, slowest: slow });
+          } catch(e) {
+            return JSON.stringify(null);
+          }
+        })();
+        """.trimIndent()
+
+    /** iframe 枚举回传上限。 */
+    const val MAX_FRAMES: Int = 20
+
+    /**
+     * iframe / frame 枚举（v1.9.0）：Agent 的「感知面」—— 页面里嵌了哪些框
+     * （src / name / title / 尺寸 / sandbox / 同源判定）。不做框内操作
+     *（那是跨 frame 定位的另一代工程），先解决「Agent 根本不知道有 iframe」。
+     */
+    val FRAME_LIST_JS: String
+        get() = """
+        (function(){
+          try {
+            var fs = document.querySelectorAll('iframe,frame');
+            var out = [];
+            for (var i = 0; i < fs.length && out.length < $MAX_FRAMES; i++) {
+              var el = fs[i];
+              var r = el.getBoundingClientRect();
+              var same = false;
+              try { same = !!el.contentDocument; } catch(e) { same = false; }
+              out.push({
+                src: (el.getAttribute('src') || el.src || '').toString().slice(0, 200),
+                name: el.getAttribute('name') || '',
+                title: (el.getAttribute('title') || '').slice(0, 80),
+                width: Math.round(r.width), height: Math.round(r.height),
+                sandbox: el.getAttribute('sandbox') || '',
+                sameOrigin: same
+              });
+            }
+            return JSON.stringify({ v: 1, total: fs.length, truncated: fs.length > out.length, frames: out });
+          } catch(e) {
+            return JSON.stringify(null);
+          }
+        })();
+        """.trimIndent()
+
+    /**
+     * 布局采集脚本（v1.9.0，自宿主 BrowserLayoutTools 下沉 —— 宿主自维护
+     * 百行内联 JS 的形态不可持续，库才是它的家）。
+     *
+     * 纯表达式 IIFE（只读 DOM / getComputedStyle / getBoundingClientRect，
+     * 无网络、无 DOM 变更），与宿主版逐行为对齐：
+     * - 视口与横向溢出 / landmark 区块矩形 / flex / grid 容器属性；
+     * - absolute / fixed 定位与定位祖先判定 / 越出视口元素 / z-index 配 static；
+     * - 缺 alt 图片 / 标题层级链 / 文字截断 / 触屏小点击目标（<44px）；
+     * - 低对比度采样（WCAG 比值 vs 背景链混合）/ 暗色模式探测。
+     *
+     * [maxElements] 为扫描上限（50..4000，Kotlin 侧钳制后以数值字面量注入）。
+     */
+    fun layoutCollectJs(maxElements: Int): String {
+        val n = maxElements.coerceIn(50, 4_000)
+        return """
+        (function(){
+          var LIMIT=$n;
+          var out={viewport:{w:innerWidth,h:innerHeight,scrollW:document.documentElement.scrollWidth,overflowX:document.documentElement.scrollWidth>innerWidth+1},landmarks:[],flex:[],grid:[],absPos:[],fixed:[],overflowEls:[],zIssues:[],noAltImgs:[],headings:[],trunc:[],smallTargets:[],lowContrast:[],colorScheme:{},maxDepth:0,textChars:0};
+          function rectOf(el){var r=el.getBoundingClientRect();return {x:Math.round(r.x),y:Math.round(r.y+scrollY),w:Math.round(r.width),h:Math.round(r.height)};}
+          function selOf(el){var t=el.tagName.toLowerCase();var id=el.id?'#'+el.id:'';var c='';try{if(el.className&&typeof el.className==='string'&&el.className.trim()){c='.'+el.className.trim().split(/\s+/).slice(0,2).join('.');}}catch(e){}
+            return t+id+c;}
+          function directText(el){for(var i=0;i<el.childNodes.length;i++){var n=el.childNodes[i];if(n.nodeType===3&&n.data.trim())return n.data.trim();}return '';}
+          var body=document.body;
+          out.textChars=body&&body.innerText?body.innerText.length:0;
+          if(!body)return JSON.stringify(out);
+          var md=window.matchMedia?matchMedia('(prefers-color-scheme: dark)'):null;
+          var csMeta=document.querySelector('meta[name="color-scheme"]');
+          var bodyBg=body?getComputedStyle(body).backgroundColor:'';
+          out.colorScheme={prefersDark:md?!!md.matches:false,meta:csMeta?(csMeta.content||'').slice(0,30):'',bodyBg:bodyBg.slice(0,24),darkBg:false};
+          function parseCol(s){var m=s&&s.match&&s.match(/rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s\/]+([\d.]+))?\)/);return m?[+m[1],+m[2],+m[3],m[4]===undefined?1:+m[4]]:null;}
+          function lum(c){var f=function(v){v=v/255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);};return 0.2126*f(c[0])+0.7152*f(c[1])+0.0722*f(c[2]);}
+          function contrastRatio(a,b){var l1=lum(a),l2=lum(b),hi=Math.max(l1,l2),lo=Math.min(l1,l2);return (hi+0.05)/(lo+0.05);}
+          function effBg(el){var chain=[],p=el;
+            while(p&&p!==document.documentElement&&chain.length<6){var c=parseCol(getComputedStyle(p).backgroundColor);if(c&&c[3]>0.01)chain.push(c);if(c&&c[3]>=1)break;p=p.parentElement;}
+            var base=out.colorScheme.prefersDark||out.colorScheme.darkBg?[18,18,18]:[255,255,255];
+            for(var i=chain.length-1;i>=0;i--){var c=chain[i];base=[c[0]*c[3]+base[0]*(1-c[3]),c[1]*c[3]+base[1]*(1-c[3]),c[2]*c[3]+base[2]*(1-c[3])];}
+            return base;}
+          var mbg=parseCol(bodyBg);
+          if(mbg&&mbg[3]>0.5&&lum(mbg)<0.18)out.colorScheme.darkBg=true;
+          var sampled=0;
+          var all=body.querySelectorAll('*');
+          for(var i=0;i<all.length&&i<LIMIT;i++){
+            var el=all[i];var tag=el.tagName.toLowerCase();
+            if(tag==='script'||tag==='style'||tag==='noscript'||tag==='svg')continue;
+            var s=getComputedStyle(el);
+            if(s.display==='none'||s.visibility==='hidden')continue;
+            var r=rectOf(el);
+            if(r.w<1&&r.h<1)continue;
+            var d=0,p=el;while(p&&p!==body){d++;p=p.parentElement;}if(d>out.maxDepth)out.maxDepth=d;
+            if((tag==='header'||tag==='nav'||tag==='main'||tag==='aside'||tag==='footer')&&out.landmarks.length<12){
+              out.landmarks.push({tag:tag,rect:r,text:(el.textContent||'').trim().slice(0,30)});
+            }
+            if((s.display==='flex'||s.display==='inline-flex')&&out.flex.length<20){
+              out.flex.push({sel:selOf(el),dir:s.flexDirection,wrap:s.flexWrap,justify:s.justifyContent,align:s.alignItems,gap:s.gap,kids:el.children.length,rect:r});
+            }else if((s.display==='grid'||s.display==='inline-grid')&&out.grid.length<12){
+              out.grid.push({sel:selOf(el),cols:s.gridTemplateColumns.slice(0,60),kids:el.children.length,rect:r});
+            }
+            if(s.position==='absolute'&&out.absPos.length<16){
+              var anc=el.parentElement,ok=false;
+              while(anc&&anc!==document.documentElement){var ps=getComputedStyle(anc);if(ps.position!=='static'){ok=true;break;}anc=anc.parentElement;}
+              out.absPos.push({sel:selOf(el),rect:r,positionedAncestor:ok});
+            }
+            if(s.position==='fixed'&&out.fixed.length<12){out.fixed.push({sel:selOf(el),rect:r,z:s.zIndex});}
+            if(s.zIndex!=='auto'&&s.position==='static'&&out.zIssues.length<10){out.zIssues.push({sel:selOf(el),z:s.zIndex});}
+            if((r.x<-2||r.x+r.w>out.viewport.w+2)&&s.position!=='fixed'&&out.overflowEls.length<12){
+              out.overflowEls.push({sel:selOf(el),rect:r});
+            }
+            if(tag==='img'&&!el.getAttribute('alt')&&out.noAltImgs.length<8){out.noAltImgs.push({src:(el.getAttribute('src')||'').slice(0,40)});}
+            if(tag.length===2&&tag[0]==='h'&&tag[1]>='1'&&tag[1]<='6'&&out.headings.length<20){
+              out.headings.push({level:parseInt(tag[1],10),text:(el.textContent||'').trim().slice(0,30)});
+            }
+            var txt=directText(el);
+            if(txt&&(el.scrollWidth>el.clientWidth+1||el.scrollHeight>el.clientHeight+1)&&out.trunc.length<12){
+              out.trunc.push({sel:selOf(el),text:txt.slice(0,26),sw:el.scrollWidth,cw:el.clientWidth,sh:el.scrollHeight,ch:el.clientHeight});
+            }
+            var interactive=tag==='a'||tag==='button'||tag==='input'||tag==='select'||tag==='textarea'||tag==='summary'||el.getAttribute('role')==='button'||el.hasAttribute('onclick');
+            if(interactive&&(r.w<44||r.h<44)&&r.w>2&&r.h>2&&out.smallTargets.length<12){
+              out.smallTargets.push({sel:selOf(el),w:r.w,h:r.h});
+            }
+            if(txt&&sampled<90){
+              sampled++;
+              var fg=parseCol(s.color),bg=effBg(el);
+              if(fg&&bg){
+                var fs=parseFloat(s.fontSize)||16,large=fs>=24||(fs>=18.66&&(+s.fontWeight>=700));
+                var ratio=Math.round(contrastRatio(fg,bg)*100)/100;
+                if(ratio<(large?3.0:4.5)&&out.lowContrast.length<10){
+                  out.lowContrast.push({sel:selOf(el),text:txt.slice(0,20),ratio:ratio,need:large?3.0:4.5,fg:s.color.slice(0,20)});
+                }
+              }
+            }
+          }
+          return JSON.stringify(out);
+        })()
+        """.trimIndent()
+    }
+
     /** 内容抽取模式。 */
     enum class ExtractMode(val value: String) {
         ARTICLE("article"), TABLES("tables"), LINKS("links"), META("meta")

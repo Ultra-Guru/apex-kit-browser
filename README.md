@@ -91,9 +91,9 @@ if (file("../apex-kit-browser").isDirectory) {
 
 ```kotlin
 dependencies {
-    implementation("com.apex.browser:browser-core:1.8.0")
-    implementation("com.apex.browser:browser-engine:1.8.0")
-    implementation("com.apex.browser:browser-chrome:1.8.0")
+    implementation("com.apex.browser:browser-core:1.9.0")
+    implementation("com.apex.browser:browser-engine:1.9.0")
+    implementation("com.apex.browser:browser-chrome:1.9.0")
 }
 ```
 
@@ -310,6 +310,93 @@ Compose UI 层文案继续走 `res/values` + `values-en`（`browser_` 前缀强�
 
 版本：三模块 1.1.0 → **1.2.0**（additive API，全部为带默认值参数的尾参扩展，
 宿主源码兼容）。
+
+## v1.9.0 变更（Playwright 对标列车：网络拦截 / Storage / Cookie 写 / 表单检测 / 性能 / iframe / UA 仿冒 / 布局下沉）
+
+### 网络拦截（`NetworkInterceptor`，`:browser-engine` 新增）
+
+- **Playwright `route().abort()` 的 WebView 对标面**：按 URL 规则（子串 / 正则）
+  屏蔽子资源请求 —— 广告与跟踪器掐流量、图片/字体/媒体按需断供提速、可疑
+  第三方域整体熔断；
+- **装饰器实现，不动引擎一行**：读出 WebView 当前 client 用 `InterceptingClient`
+  包装回装，拦截 `shouldInterceptRequest` 之外逐方法转发（SSL 拒绝 / scheme
+  白名单 / 崩溃恢复语义原样保留）；标签切换 / 崩溃重建经 `ActiveTabListener`
+  自动重新包装（幂等）；
+- **安全底线（代码写死不可配置）**：主框架导航永不屏蔽（过宽规则不能打瞎
+  浏览器）；非 GET 永不屏蔽（POST = 静默吞表单结果）；图片屏蔽回传 1×1
+  透明 GIF 占位（不撕裂布局）；
+- **四预设一键接入**：`blockTrackers()`（30 个主流 + 国产跟踪域）、
+  `blockImages()` / `blockFonts()` / `blockMedia()`（正则扩展名匹配）；
+- **可观测性**：每规则独立命中计数（`stats()` / `totalBlocked()`）；
+  `NetworkInterceptor.forEngine(engine)` 进程级单例（与
+  `BrowserEngineFactory` 同款纪律）。
+
+### Web Storage 读写（`StorageAccess.kt`，`:browser-engine` 新增）
+
+- localStorage / sessionStorage 六操作：`getStorageValue` / `setStorageValue` /
+  `removeStorageKey` / `storageKeys` / `storageSize` / `clearStorage`
+  （Playwright `storage_state` 对标的字面读写面）；
+- 统一 `{ok,...}` 信封：storage 被禁用 / QUOTA_EXCEEDED / 隐私模式转成
+  结构化错误（`StorageMutation(ok=false, error=...)`），不撕裂 JS；
+- 读值按 32k 字符截断并如实标注（`length` / `truncated` —— 截断如实上报
+  是库的既定契约）；key/value 全部经 `JsLiteral.string` 编码注入。
+
+### Cookie 写入与域级清除（`CookieControl.kt`，`:browser-engine` 新增）
+
+- `setCookie(url, name, value, path, expires)`：恢复登录态 / 预置会话；
+  name/value 拒绝 `;` 与控制字符（撕裂 Set-Cookie 头 = 注入面）；
+- `removeCookie`（过期语义删除）+ `clearCookiesForDomain`（域级清除 ——
+  重登单站点不动其他站点登录态；全局清除继续走
+  `EngineDisplayController.clearBrowsingData`）；
+- Secure 属性跟随 URL scheme；`flush()` 保证跨进程持久。
+
+### 表单结构检测（`formDetectJs` + `FormReport`，core + engine）
+
+- **一次采集直达可执行计划**：页面全部 `<form>` + 孤儿字段（SPA 散字段）
+  的结构化报告 —— 字段 / 类型 / label / placeholder / required / disabled /
+  select 选项 / 提交按钮，**每个字段带与快照同源的 ref**
+  （hash 函数 / semanticKey 公式 / 可见性剪枝 / `#n` 去重逐字一致）；
+- Agent 拿到报告直接构造 `batchExecute` 序列填提，无需先跑快照对齐；
+- **密码字段不回传值**（只报 `hasValue`）：可检测「已记住密码」但读不走内容；
+- 不可见字段不编造 ref（照常回传信息 + `visible:false`），与快照契约一致。
+
+### 性能指标（`PERFORMANCE_METRICS_JS` + `PerformanceReport`）
+
+- Navigation Timing 里程碑（DNS / TCP / TTFB / DOMContentLoaded / Load /
+  重定向数）+ Resource Timing 按 initiatorType 聚合（数量 / 字节 / 最慢）+
+  最慢资源 Top 8；
+- 回答 Agent 的三个常见性能问题：慢在哪 / 拉了多少 / 重定向几跳。
+
+### iframe 感知（`FRAME_LIST_JS` + `FrameReport`）
+
+- 嵌入框枚举：src / name / title / 尺寸 / sandbox / 同源判定；
+- 快照与表单检测只覆盖顶层文档 —— 本报告把「Agent 根本不知道有 iframe」
+  转化为「显式知道框的存在与来源」（框内操作是另一代工程，如实声明）。
+
+### UA 仿冒（`EngineEmulation`，`:browser-engine` 新增）
+
+- `setUserAgent(ua?)` 覆写/恢复 + `DESKTOP_UA` 预设一键桌面模式
+  （移动站只发精简版页面 / 绕过「浏览器不受支持」门禁的刚需）；
+- 跨标签持久：`ActiveTabListener` 在新 WebView 激活时自动重放覆写；
+- 视口仿冒不做（WebView 尺寸由承载容器决定，库层无对等面 —— 如实声明）。
+
+### 布局分析下沉（`layoutCollectJs` + `LayoutAnalysis`，core）
+
+- 宿主 `BrowserLayoutTools` 的百行内联采集脚本 + 格式化器下沉入库：
+  脚本进 `BrowserScript.layoutCollectJs(maxElements)`，格式化进纯 JVM 的
+  `LayoutAnalysis.formatReport`，宿主 `engine.analyzeLayout()` 一行调用拿
+  报告（视口溢出 / landmark / flex/grid / 定位 / 层叠 / 文字截断 /
+  小点击目标 / WCAG 对比度 / 暗色探测，与宿主版逐行为对齐）；
+- 宿主自维护内联 JS 的形态不可持续（库改脚本宿主不同步）—— 库才是它的家。
+
+### 兑现 v1.7.0 已知取舍 TODO
+
+- `BrowserEngine.clearRecentHistory()`：清空地址栏联想历史源（此前
+  `clearBrowsingData(histories)` 只清 WebView 原生历史，联想源是引擎内存
+  队列，无清空 API —— 已知取舍里明确记了「后续版本补」）。
+
+版本：三模块 1.8.0 → **1.9.0**（additive：新 API 全部为新类型 / 扩展函数 /
+带默认值参数，既有成员面零变更，宿主源码兼容）。
 
 ## v1.8.0 变更（提速列车 + 批量动作：自适应等待 / 去重注入 / 自适应轮询 / batchExecute）
 
@@ -624,10 +711,17 @@ JS 注入边界 / WebView 加固 / 资源中英镜像（84 → 118 键）/ 文�
 - **v1.7.0**：夜间模式为算法反色——iframe 内文档与个别 fixed 层可能出现
   「半亮半暗」；追求完美需 androidx.webkit 的 algorithmic darkening（引依赖，
   不做）。清除浏览数据不含地址栏联想历史（引擎 recentHistory 的内存
-  ArrayDeque 无清空 API——后续版本补）。
+  ArrayDeque 无清空 API——**v1.9.0 已兑现**：`BrowserEngine.clearRecentHistory()`）。
 - **v1.7.0**：favicon 经 DuckDuckGo Icons 按宿主名取图（无 host 网络时静默
   回退首字母徽标）；`DownloadCenter` 的台账只记本库发起的下载，不吞并
   整个系统下载列表（职责边界）。
+- **v1.9.0**：`NetworkInterceptor` 只做屏蔽，不做改写/重定向
+  （`shouldInterceptRequest` 无法把请求头修改后转发 —— 需自建网络栈，
+  破坏 Cookie/Referer 语义）；装饰器转发面 = 引擎匿名 client 现有覆写的
+  五个方法，引擎后续新增覆写需同步转发（review 守护）。`EngineEmulation`
+  只覆写活动与后续激活的标签（引擎不暴露后台标签 WebView 句柄），视口
+  仿冒无对等面。表单检测/快照不进 iframe（用 `frameList()` 感知后
+  `executeJavaScript` 直查同源框 `contentDocument`）。
 
 ## 来源追溯
 
