@@ -79,7 +79,7 @@ class BrowserScriptV20Test {
             example.com##div.ad
             example.com#?#.banner
             /banner\d+/
-            ||blocked.com^$script
+            ||blocked.com^${'$'}script
             ||wide.com^${'$'}image,third-party
             [Adblock Plus 2.0]
             """.trimIndent(),
