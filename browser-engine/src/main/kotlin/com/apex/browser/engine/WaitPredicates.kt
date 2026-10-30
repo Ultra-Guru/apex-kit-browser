@@ -6,6 +6,9 @@ import com.apex.browser.core.BrowserScript
 import kotlin.coroutines.resume
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * `waitForCondition(selector_count)` 的谓词支撑（v1.3.0，internal）。
@@ -66,6 +69,21 @@ internal suspend fun WebView.evaluateAsInt(js: String): Int? =
     }
 
 /**
+ * `dom_stable` 的安静阈值（v2.0.0）：距最后一次 DOM 变更 ≥ 此毫秒数才算
+ * 「安静」；调用方可在 value 传 100..5000 覆盖（默认 500）。
+ */
+internal const val DOM_STABLE_QUIET_MS: Long = 500
+
+/** dom_stable 探针 JSON 解析：{m, idle} → idle（异常形状返回 null）。 */
+internal fun parseDomStableProbe(probe: String?): Long? {
+    if (probe == null) return null
+    return runCatching {
+        val o = Json.parseToJsonElement(probe).jsonObject
+        o["idle"]?.jsonPrimitive?.content?.toLong()
+    }.getOrNull()
+}
+
+/**
  * `waitForCondition` 的轮询循环本体（v1.4.0 自 BrowserEngine.kt 迁入，纯代码
  * 搬移；GATE 1 预算纪律）。入口校验（模式白名单 / 谓词解析）留在引擎方法内，
  * 这里只做「轮询到命中或超时」：
@@ -105,6 +123,16 @@ internal suspend fun waitConditionLoop(
                 // 连续 2 次读到 0 才算 idle：单次 0 可能只是两次请求的间隙
                 val pending = runCatching { wv.evaluateAsInt(BrowserScript.networkIdleJs()) }.getOrNull()
                 if (pending == 0) idleStreak++ else idleStreak = 0
+                idleStreak >= 2
+            }
+            "dom_stable" -> {
+                // v2.0.0：DOM 稳定性（MutationObserver 探针，连续 2 个轮询周期
+                // 安静才命中 —— 与 network_idle 同款防抖；value 可传安静毫秒数）
+                val quiet = value.trim().toLongOrNull()?.coerceIn(100, 5_000) ?: DOM_STABLE_QUIET_MS
+                val idle = parseDomStableProbe(
+                    runCatching { evaluateJson(wv, BrowserScript.DOM_STABLE_JS) }.getOrNull(),
+                )
+                if (idle != null && idle >= quiet) idleStreak++ else idleStreak = 0
                 idleStreak >= 2
             }
             "selector_count" -> {

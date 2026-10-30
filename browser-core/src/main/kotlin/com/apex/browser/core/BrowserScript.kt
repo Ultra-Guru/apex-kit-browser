@@ -1352,6 +1352,36 @@ object BrowserScript {
         """.trimIndent()
     }
 
+    /**
+     * DOM 稳定性探针（v2.0.0 `dom_stable` 等待模式的取值侧）。
+     *
+     * 首次注入安装 MutationObserver（childList/subtree/attributes/characterData
+     * 四通道全开）累计变更数并记录最后变更时刻；重复注入幂等（`__apexMutHooked`
+     * 守卫），返回 `{m, idle}`（累计变更数 / 距最后变更的毫秒数，从未变更为 -1）。
+     * 等待语义归 Kotlin 侧轮询（与 network_idle 同款「连续 2 次安静」判定）。
+     * 无 Promise。SPA「接口回来后还在插节点」的稳定性判定主战场。
+     */
+    val DOM_STABLE_JS: String
+        get() = """
+        (function(){
+          try {
+            if (!window.__apexMutHooked) {
+              window.__apexMutHooked = true;
+              window.__apexMutCount = 0;
+              window.__apexMutLast = 0;
+              var obs = new MutationObserver(function(muts){
+                window.__apexMutCount += muts.length;
+                window.__apexMutLast = Date.now();
+              });
+              var root = document.documentElement || document.body;
+              if (root) obs.observe(root, {childList:true, subtree:true, attributes:true, characterData:true});
+            }
+            var idle = window.__apexMutLast ? (Date.now() - window.__apexMutLast) : -1;
+            return JSON.stringify({ m: window.__apexMutCount || 0, idle: idle });
+          } catch(e) { return JSON.stringify({ m: -1, idle: -1 }); }
+        })();
+        """.trimIndent()
+
     /** 内容抽取模式。 */
     enum class ExtractMode(val value: String) {
         ARTICLE("article"), TABLES("tables"), LINKS("links"), META("meta")

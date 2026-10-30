@@ -10,6 +10,9 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.apex.browser.core.DefaultFilterLists
+import com.apex.browser.core.FilterList
+import com.apex.browser.core.FilterListStats
 import java.io.ByteArrayInputStream
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -135,6 +138,53 @@ class NetworkInterceptor private constructor(private val engine: BrowserEngine) 
     /** 全部规则命中总数。 */
     fun totalBlocked(): Int = counts.values.sumOf { it.get() }
 
+    /* ───────────── 订阅式过滤列表（v2.0.0） ───────────── */
+
+    private val subscriptions = ConcurrentHashMap<String, FilterList>()
+
+    /** 合成后的订阅匹配面（不可变，热切换原子替换）。 */
+    @Volatile
+    private var mergedFilters: FilterList? = null
+
+    /** 订阅命中的累计屏蔽数（与手写规则的计数分列，各自可观测）。 */
+    private val filterBlockedCount = AtomicInteger(0)
+
+    /**
+     * 订阅 EasyList 子集文本（v2.0.0）：手写规则升级为社区过滤列表生态。
+     * 同名重复订阅 = 覆盖（幂等）。返回编译统计（收录/跳过/截断如实上报）。
+     */
+    @Synchronized
+    fun subscribeFilters(name: String, text: String): FilterListStats {
+        require(name.isNotBlank()) { "订阅名不能为空" }
+        val list = FilterList.parse(text)
+        subscriptions[name] = list
+        remergeFilters()
+        return list.stats
+    }
+
+    /** 退订。返回是否存在该订阅。 */
+    @Synchronized
+    fun unsubscribeFilters(name: String): Boolean {
+        val removed = subscriptions.remove(name) != null
+        if (removed) remergeFilters()
+        return removed
+    }
+
+    /** 当前订阅名快照。 */
+    fun subscriptionNames(): List<String> = subscriptions.keys().toList().sorted()
+
+    /** 订阅命中累计数。 */
+    fun filterBlockedTotal(): Int = filterBlockedCount.get()
+
+    /** 一键启用内置起步列表（零网络依赖的 130 域保守集，见 [DefaultFilterLists]）。 */
+    fun applyDefaultFilterList(): FilterListStats =
+        subscribeFilters("default", DefaultFilterLists.TRACKER_CORE)
+
+    private fun remergeFilters() {
+        mergedFilters = if (subscriptions.isEmpty()) null
+        else FilterList.compose(subscriptions.values.toList())
+    }
+
     /* ───────────── 预设（常见屏蔽场景一键接入） ───────────── */
 
     /** 屏蔽常见广告 / 分析 / 行为跟踪域（Google/Meta/ads 生态 + 国产常见项）。返回添加的规则数。 */
@@ -180,6 +230,13 @@ class NetworkInterceptor private constructor(private val engine: BrowserEngine) 
         for (rule in rules) {
             if (rule.matches(url)) {
                 counts[rule.id]?.incrementAndGet()
+                return blockedResponse(url)
+            }
+        }
+        // 订阅列表（EasyList 子集）：例外优先的域后缀+子串匹配，命中即屏蔽
+        mergedFilters?.let { filters ->
+            if (filters.matches(url)) {
+                filterBlockedCount.incrementAndGet()
                 return blockedResponse(url)
             }
         }

@@ -13,6 +13,11 @@ browser-engine :: class BrowserEngine.Tab(val id: Int, val webView: WebView, var
 browser-engine :: class BrowserEngine.WaitOutcome(val matched: Boolean, val detail: String, val elapsedMs: Long)
 browser-engine :: class BrowserTracer(private val capacity: Int = 100)
 browser-engine :: class BrowserTracer.Entry(val timestamp: String, val tool: String, val params: String, val resultSummary: String, val durationMs: Long, val url: String?, val state: String, val error: String? = null,)
+browser-engine :: class ConsoleCapture
+browser-engine :: class ConsoleCapture.Entry(val level: String, val message: String, val source: String, val line: Int, val atMs: Long,)
+browser-engine :: class DialogArbiter internal constructor(private val tracer: BrowserTracer)
+browser-engine :: class DialogArbiter.DialogInfo(val id: Int, val type: String, val message: String, val defaultValue: String?,)
+browser-engine :: class DialogArbiter.Mode
 browser-engine :: class DownloadCenter private constructor(appContext: Context, private val engine: BrowserEngine,)
 browser-engine :: class DownloadCenter.DownloadStatus(val dmId: Long, val fileName: String, val url: String, val mimeType: String?, val state: String, val bytesSoFar: Long = 0L, val totalBytes: Long = -1L, val reason: Int = 0, val enqueuedAt: Long = 0L,)
 browser-engine :: class EngineDisplayController private constructor(private val engine: BrowserEngine,)
@@ -21,6 +26,7 @@ browser-engine :: class EngineEmulation private constructor(private val engine: 
 browser-engine :: class NetworkInterceptor private constructor(private val engine: BrowserEngine)
 browser-engine :: class NetworkInterceptor.BlockRule(val id: String, val pattern: String, val isRegex: Boolean = false, val description: String =,)
 browser-engine :: class OverlayLifecycleOwner : LifecycleOwner, SavedStateRegistryOwner
+browser-engine :: class SessionRestore(context: Context, private val engine: BrowserEngine,) : BrowserEngine.ActiveTabListener, BrowserEngine.BrowserUiCallback
 browser-engine :: class StorageKeys(val keys: List<String> = emptyList(), val total: Int = 0, val truncated: Boolean = false,)
 browser-engine :: class StorageMutation(val ok: Boolean, val error: String? = null,)
 browser-engine :: class StorageRead(val exists: Boolean = false, val value: String =, val length: Int = 0, val truncated: Boolean = false, val error: String? = null,)
@@ -132,6 +138,14 @@ browser-engine :: fun BrowserTracer.clear()
 browser-engine :: fun BrowserTracer.contextSummary(maxFullSteps: Int = 3): String
 browser-engine :: fun BrowserTracer.recent(limit: Int = 20): List<Entry>
 browser-engine :: fun BrowserTracer.record(tool: String, params: String, resultSummary: String, durationMs: Long, url: String?, state: String, error: String? = null,)
+browser-engine :: fun ConsoleCapture.Entry.summaryLine(): String
+browser-engine :: fun DialogArbiter.alert(message: String?, result: JsResult?): Boolean
+browser-engine :: fun DialogArbiter.confirm(url: String?, message: String?, result: JsResult?): Boolean
+browser-engine :: fun DialogArbiter.pendingDialogs(): List<DialogInfo>
+browser-engine :: fun DialogArbiter.pendingNotice(): String?
+browser-engine :: fun DialogArbiter.prompt(url: String?, message: String?, defaultValue: String?, result: JsPromptResult?): Boolean
+browser-engine :: fun DialogArbiter.resolveAll()
+browser-engine :: fun DialogArbiter.respond(id: Int, accept: Boolean, promptText: String? = null): Boolean
 browser-engine :: fun DownloadCenter.cancel(dmId: Long): Boolean
 browser-engine :: fun DownloadCenter.enqueue(entry: DownloadLedgerEntry, cookie: String?): Long?
 browser-engine :: fun DownloadCenter.forget(dmId: Long): Boolean
@@ -156,16 +170,21 @@ browser-engine :: fun EngineEmulation.resetToDefault(): String?
 browser-engine :: fun EngineEmulation.setUserAgent(ua: String?): String?
 browser-engine :: fun EngineEmulation.userAgent(): String?
 browser-engine :: fun NetworkInterceptor.addBlockRule(pattern: String, isRegex: Boolean = false, description: String =): BlockRule
+browser-engine :: fun NetworkInterceptor.applyDefaultFilterList(): FilterListStats
 browser-engine :: fun NetworkInterceptor.blockFonts(): Int
 browser-engine :: fun NetworkInterceptor.blockImages(): Int
 browser-engine :: fun NetworkInterceptor.blockMedia(): Int
 browser-engine :: fun NetworkInterceptor.blockTrackers(): Int
 browser-engine :: fun NetworkInterceptor.clearRules(): Int
 browser-engine :: fun NetworkInterceptor.dispose()
+browser-engine :: fun NetworkInterceptor.filterBlockedTotal(): Int
 browser-engine :: fun NetworkInterceptor.removeBlockRule(id: String): Boolean
 browser-engine :: fun NetworkInterceptor.rules(): List<BlockRule>
 browser-engine :: fun NetworkInterceptor.stats(): Map<String, Int>
+browser-engine :: fun NetworkInterceptor.subscribeFilters(name: String, text: String): FilterListStats
+browser-engine :: fun NetworkInterceptor.subscriptionNames(): List<String>
 browser-engine :: fun NetworkInterceptor.totalBlocked(): Int
+browser-engine :: fun NetworkInterceptor.unsubscribeFilters(name: String): Boolean
 browser-engine :: fun OverlayLifecycleOwner.onCreate()
 browser-engine :: fun OverlayLifecycleOwner.onDestroy()
 browser-engine :: fun OverlayLifecycleOwner.onPause()
@@ -173,9 +192,21 @@ browser-engine :: fun OverlayLifecycleOwner.onResume()
 browser-engine :: fun OverlayLifecycleOwner.onStart()
 browser-engine :: fun OverlayLifecycleOwner.onStop()
 browser-engine :: fun OverlayLifecycleOwner.performRestore()
+browser-engine :: fun SessionRestore.clear()
+browser-engine :: fun SessionRestore.dispose()
+browser-engine :: fun SessionRestore.lastSessionTabs(): List<TabSession>
+browser-engine :: fun SessionRestore.onActiveTabChanged(webView: WebView?)
+browser-engine :: fun SessionRestore.onStateChanged(state: BrowserEngine.BrowserSessionState, url: String?, title: String?,)
+browser-engine :: fun SessionRestore.persistNow(): Int
+browser-engine :: fun SessionRestore.restoreTabs(): Int
 browser-engine :: fun WebView .evaluateAsInt(js: String): Int?
 browser-engine :: fun WebView .evaluateAwait(script: String): String?
+browser-engine :: fun clear()
+browser-engine :: fun errorCount(): Int
 browser-engine :: fun readPageGeometry(wv: WebView): PageGeometry?
+browser-engine :: fun recent(limit: Int = 50, minLevel: String? = null, contains: String? = null,): List<Entry>
+browser-engine :: fun record(level: String, message: String?, source: String?, line: Int)
+browser-engine :: fun size(): Int
 browser-engine :: fun waitConditionLoop(wv: WebView, mode: String, value: String, countPred: CountPredicate?, timeoutMs: Long, pollMs: Long, evaluateBoolean: suspend (WebView, String) -> Boolean, evaluateJson: suspend (WebView, String) -> String,): BrowserEngine.WaitOutcome
 browser-engine :: interface BrowserEngine.ActiveTabListener
 browser-engine :: interface BrowserEngine.BrowserUiCallback
@@ -207,6 +238,8 @@ browser-engine :: val BrowserEngine.Tab.webView : WebView
 browser-engine :: val BrowserEngine.WaitOutcome.detail : String
 browser-engine :: val BrowserEngine.WaitOutcome.elapsedMs : Long
 browser-engine :: val BrowserEngine.WaitOutcome.matched : Boolean
+browser-engine :: val BrowserEngine.consoleCapture
+browser-engine :: val BrowserEngine.dialogArbiter
 browser-engine :: val BrowserEngine.tracer
 browser-engine :: val BrowserTracer.Entry.durationMs : Long
 browser-engine :: val BrowserTracer.Entry.error : String?
@@ -217,7 +250,16 @@ browser-engine :: val BrowserTracer.Entry.timestamp : String
 browser-engine :: val BrowserTracer.Entry.tool : String
 browser-engine :: val BrowserTracer.Entry.url : String?
 browser-engine :: val BrowserTracer.events : SharedFlow<Entry>
+browser-engine :: val ConsoleCapture.Entry.atMs : Long
+browser-engine :: val ConsoleCapture.Entry.level : String
+browser-engine :: val ConsoleCapture.Entry.line : Int
+browser-engine :: val ConsoleCapture.Entry.message : String
+browser-engine :: val ConsoleCapture.Entry.source : String
 browser-engine :: val DEFAULT_MAX_SEGMENTS : Int
+browser-engine :: val DialogArbiter.DialogInfo.defaultValue : String?
+browser-engine :: val DialogArbiter.DialogInfo.id : Int
+browser-engine :: val DialogArbiter.DialogInfo.message : String
+browser-engine :: val DialogArbiter.DialogInfo.type : String
 browser-engine :: val DownloadCenter.DownloadStatus.bytesSoFar : Long
 browser-engine :: val DownloadCenter.DownloadStatus.dmId : Long
 browser-engine :: val DownloadCenter.DownloadStatus.enqueuedAt : Long
@@ -253,6 +295,7 @@ browser-engine :: val StorageRead.exists : Boolean
 browser-engine :: val StorageRead.length : Int
 browser-engine :: val StorageRead.truncated : Boolean
 browser-engine :: val StorageRead.value : String
+browser-engine :: val capacity : Int get()
 browser-engine :: var BrowserEngine.Tab.netHooked : Boolean
 browser-engine :: var BrowserEngine.Tab.pageFinished : Boolean
 browser-engine :: var BrowserEngine.Tab.title : String
@@ -260,3 +303,4 @@ browser-engine :: var BrowserEngine.Tab.url : String
 browser-engine :: var BrowserEngine.currentState : BrowserSessionState
 browser-engine :: var BrowserEngine.lastDialog : String?
 browser-engine :: var BrowserEngine.lastDownload : DownloadRecord?
+browser-engine :: var DialogArbiter.mode : Mode

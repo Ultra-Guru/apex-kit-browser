@@ -41,14 +41,14 @@ dependencies {
 
 // composite build 依赖替换：宿主 includeBuild 时按 group:name 自动替换远端坐标
 group = "com.apex.browser"
-version = "1.9.0"
+version = "2.0.0"
 
 mavenPublishing {
     // Android 项目用 vanniktech 0.30 自动配置（Empty javadoc + sources + release variant）
     coordinates(
         groupId = "com.apex.browser",
         artifactId = "browser-engine",
-        version = "1.9.0",
+        version = "2.0.0",
     )
     pom {
         name.set("Apex Kit Browser :: Engine")

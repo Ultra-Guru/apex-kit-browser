@@ -91,9 +91,9 @@ if (file("../apex-kit-browser").isDirectory) {
 
 ```kotlin
 dependencies {
-    implementation("com.apex.browser:browser-core:1.9.0")
-    implementation("com.apex.browser:browser-engine:1.9.0")
-    implementation("com.apex.browser:browser-chrome:1.9.0")
+    implementation("com.apex.browser:browser-core:2.0.0")
+    implementation("com.apex.browser:browser-engine:2.0.0")
+    implementation("com.apex.browser:browser-chrome:2.0.0")
 }
 ```
 
@@ -310,6 +310,73 @@ Compose UI 层文案继续走 `res/values` + `values-en`（`browser_` 前缀强�
 
 版本：三模块 1.1.0 → **1.2.0**（additive API，全部为带默认值参数的尾参扩展，
 宿主源码兼容）。
+
+## v2.0.0 变更（「真浏览器」列车：弹窗支持 / 控制台捕获 / 弹窗仲裁 / 广告订阅 / 会话恢复 / DOM 稳定）
+
+v1.x 补齐的是「自动化能力面」（Playwright 工具对位）；v2.0.0 补的是
+**「浏览器本体」面** —— 与 Chrome/uBlock 的日常体验差距。
+
+### 弹窗 / target=_blank 支持（`PopupBridge.kt`，P0 级体验修复）
+
+- **修复前**：WebView 未开多窗口支持，`target=_blank` 外链（半个移动 Web
+  的跳转形态）**静默失灵** —— 点了没反应，用户与 Agent 都以为链接坏了；
+- 开启 `setSupportMultipleWindows(true)` + `onCreateWindow` 经典桥接：
+  临时 WebView 接住弹窗 URL（永不真加载）→ `newTab` 开新标签；scheme
+  白名单与主 client 同口径（file/javascript 弹窗一律不开）；
+- **弹窗拦截语义**：非用户手势的 `window.open`（真弹窗广告形态）直接
+  拦截并 trace —— 与真实浏览器弹窗拦截器同一判断口径。
+
+### JS 控制台捕获（`ConsoleCapture`，引擎公开属性）
+
+- `console.*` 与**未捕获 JS 异常**（Chromium 以 ERROR 级 console 上报）
+  环形缓冲 400 条 —— v1.x 引擎对「页面自己说了什么」完全零感知，Agent
+  调试交互失败时是盲区；
+- `recent(limit, minLevel, contains)` 三维过滤（只看报错 / 只看含某关键字的
+  日志）；`errorCount()` 供动作前后差值判定（「这个点击是否引发新 JS 错误」）。
+
+### 弹窗仲裁器（`DialogArbiter`，Playwright `page.on('dialog')` 对标）
+
+- v1.x 对 `confirm('确定删除吗？')` **全部自动点「好」** —— Agent 对语义
+  分叉点没有任何否决权；
+- 三模式：`AUTO_CONFIRM`（默认 = v1.x 行为零漂移）/ `AUTO_DISMISS`
+  （「确定离开页面？」点「留下」才是自动化想要的）/ `MANUAL`（入队 +
+  `respond(id, accept, promptText)` 显式决策）；
+- **15s 超时兜底自动确认**：页面 JS 是挂起态，永不 respond = 标签页永久
+  卡死；兜底保证「最坏回到旧行为」而非「最坏死锁」；
+- MANUAL 挂起队列融合进快照 `dialogNotice`（模型对「页面为何挂起」可见）；
+  会话收尾 `resolveAll()` 清场防泄漏。
+
+### 广告过滤订阅（`FilterList` + `NetworkInterceptor.subscribeFilters`）
+
+- **EasyList 公共子集解析器**（core，纯 JVM 可单测）：域锚点
+  （`||domain^`，host 后缀匹配）/ 域+路径 / 前缀锚点 / 裸子串 /
+  **例外白名单（`@@`）优先**；cosmetics（`##`）/ 正则 / `$类型选项`
+  如实跳过并计数（跳过什么、收录什么、有没有触顶，全部如实上报）；
+- `subscribeFilters(name, text)` / `unsubscribeFilters(name)` /
+  `applyDefaultFilterList()`（内置 **130 域保守起步列表**，
+  零网络依赖、主流站点零误杀由测试锁定）；订阅命中计数独立可观测；
+- 重度用户：宿主自行下载完整 EasyList 文本导入（域规则上限 3000 条在
+  毫秒级匹配预算内）。
+
+### 会话恢复（`SessionRestore`，Chrome 基线体验：杀进程标签还在）
+
+- 标签结构与 URL 持久化（SharedPreferences），冷启动 `restoreTabs()`
+  逐个建页恢复；`lastSessionTabs()` 供宿主做「恢复？」确认 UI；
+- 自动持久化挂在标签拓扑变化（ActiveTabListener）+ 状态机迁移兜底；
+  **页面内导航不触发标签变化 —— 宿主应在 onStop 调 `persistNow()`**
+  （显式兜底才是可靠路径，自动钩子尽力而为，取舍如实声明）；
+- 恢复的是 URL 不是页面状态（滚动位置/表单草稿不恢复 —— WebView 无
+  渲染树序列化对等面）。
+
+### `dom_stable` 等待模式（第 8 种）
+
+- MutationObserver 四通道探针（childList/subtree/attributes/characterData）
+  + 连续 2 个轮询周期安静（与 network_idle 同款防抖）；
+- SPA「接口回来后还在插节点」的稳定性判定主战场；value 可传安静毫秒数
+  （100..5000，默认 500）。
+
+版本：三模块 1.9.0 → **2.0.0**（additive：新能力全部为新类型 / 新回调 /
+引擎公开属性新增，既有成员面零变更，宿主源码兼容）。
 
 ## v1.9.0 变更（Playwright 对标列车：网络拦截 / Storage / Cookie 写 / 表单检测 / 性能 / iframe / UA 仿冒 / 布局下沉）
 
@@ -722,6 +789,15 @@ JS 注入边界 / WebView 加固 / 资源中英镜像（84 → 118 键）/ 文�
   只覆写活动与后续激活的标签（引擎不暴露后台标签 WebView 句柄），视口
   仿冒无对等面。表单检测/快照不进 iframe（用 `frameList()` 感知后
   `executeJavaScript` 直查同源框 `contentDocument`）。
+- **v2.0.0**：`FilterList` 只解析 EasyList 网络规则子集 —— cosmetics
+  （`##元素隐藏`）与正则规则如实跳过（cosmetics 是注入式隐藏，另一代
+  工程）；`DialogArbiter.MANUAL` 的 15s 超时兜底 =「最坏回到旧行为」的
+  防死锁设计而非精确语义；`SessionRestore` 恢复 URL 不恢复页面状态，
+  页面内导航的自动持久化是尽力而为（onStop 的 `persistNow()` 才可靠）；
+  弹窗桥接的临时 WebView 不主动 destroy（无内容无附件，交给 GC）。
+  无痕模式（incognito）**未做**：WebView 的 CookieManager 进程级全局，
+  「会话结束擦除」会连带抹掉非无痕期间积累的全部登录态 —— 语义诚实
+  比功能堆叠重要，做错的隐身比不做更危险。
 
 ## 来源追溯
 

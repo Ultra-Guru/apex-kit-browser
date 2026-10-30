@@ -193,6 +193,21 @@ class BrowserEngine private constructor(
      */
     val tracer = BrowserTracer()
 
+    /**
+     * JS 弹窗仲裁器（v2.0.0）：alert/confirm/prompt 的三模式处置
+     * （AUTO_CONFIRM 默认 = v1.x 行为零漂移；AUTO_DISMISS；MANUAL + respond +
+     * 15s 超时兼底）。Agent 控制面见 [DialogArbiter.pendingDialogs] / [respond]，
+     * 快照融合见 [DialogArbiter.pendingNotice]。
+     */
+    val dialogArbiter = DialogArbiter(tracer)
+
+    /**
+     * JS 控制台捕获（v2.0.0）：console.* 与未捕获异常（Chromium 以 ERROR 级
+     * console 上报）环形缓冲 400 条，[ConsoleCapture.recent] 三维过滤，
+     * [ConsoleCapture.errorCount] 供动作前后差值判定。
+     */
+    val consoleCapture = ConsoleCapture()
+
     /** 文件上传回调挂起（[onShowFileChooser] ↔ [respondFileChooser]） */
     private var pendingFileChooser: ValueCallback<Array<android.net.Uri>>? = null
 
@@ -241,6 +256,10 @@ class BrowserEngine private constructor(
         wv.settings.setSupportZoom(true)
         wv.settings.builtInZoomControls = true
         wv.settings.displayZoomControls = false
+        // v2.0.0：多窗口支持 —— 开启后 window.open / target=_blank 才会走到
+        // onCreateWindow 回调（不开则外链静默失灵，见该回调 KDoc）；弹窗 URL
+        // 仍经 scheme 白名单与 newTab 路径，无新增攻击面。
+        wv.settings.setSupportMultipleWindows(true)
         wv.settings.allowFileAccess = false
         wv.settings.allowContentAccess = false
         wv.settings.allowFileAccessFromFileURLs = false
@@ -333,28 +352,22 @@ class BrowserEngine private constructor(
             }
         }
 
-        // P0 #3：JS 弹窗处理（alert/confirm/prompt 阻塞 JS，必须接管）
+        // P0 #3：JS 弹窗处理（alert/confirm/prompt 阻塞 JS，必须接管）。
+        // v2.0.0：处置决策收敛到 [dialogArbiter]（三模式 + respond + 超时兼底，
+        // 独立文件维护；AUTO_CONFIRM 默认与 v1.x 行为零漂移）。
         wv.webChromeClient = object : WebChromeClient() {
             override fun onJsAlert(
                 view: WebView?, url: String?, message: String?, result: JsResult?
             ): Boolean {
                 lastDialog = "alert: ${message ?: ""}"
-                result?.confirm()
-                return true
+                return dialogArbiter.alert(message, result)
             }
 
             override fun onJsConfirm(
                 view: WebView?, url: String?, message: String?, result: JsResult?
             ): Boolean {
-                // 默认确认；Agent 可通过 browser_dialog 工具在确认前拦截（此处保守确认以免卡死）
                 lastDialog = "confirm: ${message ?: ""}"
-                // v1.3.0：自动确认属于不可观察的静默行为，入 trace 留痕
-                tracer.record(
-                    "system.dialog_auto_confirmed", "type=confirm",
-                    "已自动确认 confirm 弹窗：${message ?: ""}", 0, url, currentState.name,
-                )
-                result?.confirm()
-                return true
+                return dialogArbiter.confirm(url, message, result)
             }
 
             override fun onJsPrompt(
@@ -362,9 +375,28 @@ class BrowserEngine private constructor(
                 result: android.webkit.JsPromptResult?
             ): Boolean {
                 lastDialog = "prompt: ${message ?: ""}"
-                result?.confirm(defaultValue ?: "")
+                return dialogArbiter.prompt(url, message, defaultValue, result)
+            }
+
+            // v2.0.0：JS 控制台捕获（console.* 与未捕获异常都经此回调上报，
+            // Chromium 把 Uncaught 错误以 ERROR 级 console 消息送达）。
+            override fun onConsoleMessage(cm: android.webkit.ConsoleMessage?): Boolean {
+                consoleCapture.record(cm?.level()?.name ?: "LOG", cm?.message(), cm?.sourceId(), cm?.lineNumber() ?: 0)
                 return true
             }
+
+            // v2.0.0：弹窗/target=_blank 支持 —— setSupportMultipleWindows(true)
+            // 后 window.open 与 target=_blank 都走本回调（否则 target=_blank 链接
+            // 在 WebView 里静默失灵，半个移动 Web 的外链都打不开）。桥接实现
+            // 见同包 PopupBridge.kt（临时 WebView 接住弹窗 URL → newTab；
+            // scheme 白名单同口径；非用户手势弹窗直接拦截）。GATE 1 预算纪律。
+            override fun onCreateWindow(
+                view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message?
+            ): Boolean = handlePopup(
+                view, isDialog, isUserGesture, resultMsg,
+                openInNewTab = { u -> mainScope.launch { newTab(u) } },
+                trace = { tag, params, msg -> tracer.record(tag, params, msg, 0, view?.url, currentState.name) },
+            )
 
             // v1.3.0 修复：标题此前从未被任何 client 更新（tab.title 只在快照时被动读取），
             // PageSnapshot.title 恒为空串，SPA 动态标题（document.title 变更）也反映不到
@@ -574,6 +606,9 @@ class BrowserEngine private constructor(
      */
     suspend fun releaseBrowser() = stateMutex.withLock {
         if (currentState == BrowserSessionState.RECOVERING) return@withLock
+        // v2.0.0：会话收尾清空 MANUAL 弹窗队列（挂起中的 confirm 全部确认，
+        // 防「会话结束后 JsResult 永不回调」的页面挂起残留）。
+        dialogArbiter.resolveAll()
         setState(BrowserSessionState.HIDDEN)
     }
 
@@ -746,7 +781,7 @@ class BrowserEngine private constructor(
         val tab = activeTab()
             ?: return@withContext WaitOutcome(false, "no active tab", 0)
         if (mode !in WAIT_MODES) {
-            return@withContext WaitOutcome(false, "unknown mode '$mode' (use selector|text|url|element_gone|text_gone|network_idle|selector_count)", 0)
+            return@withContext WaitOutcome(false, "unknown mode '$mode' (use selector|text|url|element_gone|text_gone|network_idle|selector_count|dom_stable)", 0)
         }
         // selector_count 谓词只解析一次；解析失败立即返回可诊断错误而非静默超时
         val countPred = if (mode == "selector_count") parseCountPredicate(value) else null
@@ -912,8 +947,10 @@ class BrowserEngine private constructor(
         // v1.3.0 快照融合：时间戳 + 弹窗通知（消费即清）。lastDialog 非空时写入
         // 本次快照并随即清空——模型在下一次 snapshot 必然看到这则通知，且不会
         // 重复收到同一条；timestampMs 供消费方判快照新鲜度。
-        val notice = lastDialog
-        if (notice != null) lastDialog = null
+        // v2.0.0：MANUAL 弹窗模式下挂起中的弹窗队列也入通知（否则模型对
+        // 「页面为何挂起」不可见）。
+        val notice = lastDialog ?: dialogArbiter.pendingNotice()
+        if (lastDialog != null) lastDialog = null
         snap.copy(timestampMs = System.currentTimeMillis(), dialogNotice = notice)
         }
     }
@@ -1542,7 +1579,7 @@ class BrowserEngine private constructor(
         private const val MAX_NAVIGATIONS_BEFORE_REBUILD = 50
 
         /** [waitForCondition] 支持的等待模式（v1.3.0 扩到 7 种，见其 KDoc） */
-        private val WAIT_MODES = setOf("selector", "text", "url", "element_gone", "text_gone", "network_idle", "selector_count")
+        private val WAIT_MODES = setOf("selector", "text", "url", "element_gone", "text_gone", "network_idle", "selector_count", "dom_stable")
 
         // 反检测隐身 JS（#13 轻量版）已于 v1.3.0 下沉到
         // [com.apex.browser.core.BrowserScript.STEALTH_JS]（JS 工厂只放 BrowserScript.kt

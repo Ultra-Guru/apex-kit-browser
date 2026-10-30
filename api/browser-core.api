@@ -16,6 +16,8 @@ browser-core :: class DomParser.SnapshotStrategy
 browser-core :: class DownloadLedger(initial: List<DownloadLedgerEntry> = emptyList())
 browser-core :: class DownloadLedgerEntry(val dmId: Long, val fileName: String, val url: String, val mimeType: String? = null, val enqueuedAt: Long = 0L,)
 browser-core :: class ElementNotFoundException(message: String) : Exception(message)
+browser-core :: class FilterList internal constructor(internal val domains: List<DomainAnchor>, internal val substrings: List<SubstringAnchor>, internal val exceptionDomains: List<DomainAnchor>, internal val exceptionSubstrings: List<SubstringAnchor>, val stats: FilterListStats,)
+browser-core :: class FilterListStats(val domainRules: Int = 0, val substringRules: Int = 0, val exceptionRules: Int = 0, val skipped: Int = 0, val truncated: Boolean = false,)
 browser-core :: class FormDescriptor(val action: String =, val method: String =, val id: String =, val name: String =, val fields: List<FormFieldDescriptor> = emptyList(), val truncatedFields: Boolean = false, val submitRefs: List<String> = emptyList(),)
 browser-core :: class FormFieldDescriptor(val ref: String, val visible: Boolean = true, val tag: String, val type: String, val name: String =, val id: String =, val required: Boolean = false, val disabled: Boolean = false, val readOnly: Boolean = false, val label: String =, val placeholder: String =, val hasValue: Boolean = false, val valuePreview: String =, val checked: Boolean? = null, val optionCount: Int = 0, val options: List<FormOption> = emptyList(),)
 browser-core :: class FormOption(val value: String, val text: String, val selected: Boolean = false,)
@@ -35,6 +37,7 @@ browser-core :: class Rect(val x: Int, val y: Int, val width: Int, val height: I
 browser-core :: class ResourceBucket(val type: String, val count: Int = 0, val bytes: Long = 0, val maxDuration: Int = 0,)
 browser-core :: class RetryPolicy(val maxRetries: Int = 3, val initialDelayMs: Long = 500, val backoffMultiplier: Double = 2.0, val maxDelayMs: Long = 5000, val retryableExceptions: Set<Class<out Throwable>> = setOf(ElementNotFoundException::class.java, java.util.concurrent.TimeoutException::class.java, WebViewNotRespondingException::class.java,),)
 browser-core :: class SlowResource(val url: String, val duration: Int, val bytes: Long = 0, val type: String =,)
+browser-core :: class TabSession(val url: String, val title: String =, val savedAtMs: Long = 0L,)
 browser-core :: class WebViewNotRespondingException(message: String) : Exception(message)
 browser-core :: fun BatchActionValidator.check(actions: List<BatchAction>): String?
 browser-core :: fun Bookmark .fallbackTitle(): String
@@ -92,6 +95,7 @@ browser-core :: fun DownloadLedger.register(dmId: Long, fileName: String, url: S
 browser-core :: fun DownloadLedger.remove(dmId: Long): Boolean
 browser-core :: fun DownloadLedgerCodec.decode(raw: String?): List<DownloadLedgerEntry>
 browser-core :: fun DownloadLedgerCodec.encode(entries: List<DownloadLedgerEntry>): String
+browser-core :: fun FilterList.matches(url: String): Boolean
 browser-core :: fun FormDescriptor.headerLine(): String
 browser-core :: fun FormFieldDescriptor.summaryLine(): String
 browser-core :: fun FormReport.toAgentText(): String
@@ -108,6 +112,8 @@ browser-core :: fun PerformanceReport.toAgentText(): String
 browser-core :: fun PerformanceReportParser.parse(raw: String?): PerformanceReport?
 browser-core :: fun ReaderParser.parse(rawJson: String?): ReaderDocument?
 browser-core :: fun ReaderParser.plainText(doc: ReaderDocument, includeOutline: Boolean = true): String
+browser-core :: fun TabSessionCodec.decode(raw: String?): List<TabSession>
+browser-core :: fun TabSessionCodec.encode(sessions: List<TabSession>): String
 browser-core :: fun UrlCleaner.clean(url: String): String
 browser-core :: fun UrlCleaner.cleanOrNull(url: String): String?
 browser-core :: fun UrlCleaner.hostOf(url: String): String
@@ -119,6 +125,7 @@ browser-core :: object BatchActionValidator
 browser-core :: object BookmarkCodec
 browser-core :: object BookmarkFolderNames
 browser-core :: object BrowserScript
+browser-core :: object DefaultFilterLists
 browser-core :: object DomParser
 browser-core :: object DownloadLedgerCodec
 browser-core :: object FormReportParser
@@ -128,6 +135,7 @@ browser-core :: object LayoutAnalysis
 browser-core :: object PageClassifier
 browser-core :: object PerformanceReportParser
 browser-core :: object ReaderParser
+browser-core :: object TabSessionCodec
 browser-core :: object UrlCleaner
 browser-core :: val BatchAction.append : Boolean
 browser-core :: val BatchAction.byText : Boolean
@@ -154,6 +162,7 @@ browser-core :: val BookmarkFolder.name : String
 browser-core :: val BookmarkFolderNames.ROOT : String
 browser-core :: val BrowserScript.A11Y_FALLBACK_JS : String
 browser-core :: val BrowserScript.CURRENT_URL_JS : String
+browser-core :: val BrowserScript.DOM_STABLE_JS : String
 browser-core :: val BrowserScript.ExtractMode.value : String
 browser-core :: val BrowserScript.FORCE_DARK_JS : String
 browser-core :: val BrowserScript.FORCE_DARK_OFF_JS : String
@@ -178,6 +187,7 @@ browser-core :: val BrowserScript.SNAPSHOT_MAX_ELEMENTS : Int
 browser-core :: val BrowserScript.STEALTH_JS : String
 browser-core :: val BrowserScript.StorageOp.wire : String
 browser-core :: val CircuitBreaker.currentState : State get()
+browser-core :: val DefaultFilterLists.TRACKER_CORE : String
 browser-core :: val DomElement.attributes : Map<String
 browser-core :: val DomElement.bid : Int
 browser-core :: val DomElement.childCount : Int
@@ -194,6 +204,13 @@ browser-core :: val DownloadLedgerEntry.enqueuedAt : Long
 browser-core :: val DownloadLedgerEntry.fileName : String
 browser-core :: val DownloadLedgerEntry.mimeType : String?
 browser-core :: val DownloadLedgerEntry.url : String
+browser-core :: val FilterList.stats : FilterListStats
+browser-core :: val FilterListStats.domainRules : Int
+browser-core :: val FilterListStats.exceptionRules : Int
+browser-core :: val FilterListStats.skipped : Int
+browser-core :: val FilterListStats.substringRules : Int
+browser-core :: val FilterListStats.totalRules : Int get()
+browser-core :: val FilterListStats.truncated : Boolean
 browser-core :: val FormDescriptor.action : String
 browser-core :: val FormDescriptor.fields : List<FormFieldDescriptor>
 browser-core :: val FormDescriptor.id : String
@@ -302,3 +319,7 @@ browser-core :: val SlowResource.bytes : Long
 browser-core :: val SlowResource.duration : Int
 browser-core :: val SlowResource.type : String
 browser-core :: val SlowResource.url : String
+browser-core :: val TabSession.savedAtMs : Long
+browser-core :: val TabSession.title : String
+browser-core :: val TabSession.url : String
+browser-core :: val TabSessionCodec.MAX_TABS : Int
