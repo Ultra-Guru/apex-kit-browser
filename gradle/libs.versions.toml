@@ -6,7 +6,7 @@
 kotlin = "2.2.21"
 agp = "8.13.2"
 compose-bom = "2025.11.01"
-coroutines = "1.10.2"
+coroutines = "1.11.0"
 serialization = "1.11.0"
 maven-publish = "0.37.0"
 lifecycle = "2.8.7"
