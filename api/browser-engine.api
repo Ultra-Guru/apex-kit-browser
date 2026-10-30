@@ -50,6 +50,7 @@ browser-engine :: fun BrowserEngine .diagnoseRaw(script: String): String?
 browser-engine :: fun BrowserEngine .frameList(): FrameReport?
 browser-engine :: fun BrowserEngine .fullPageScreenshot(maxSegments: Int = DEFAULT_MAX_SEGMENTS, onProgress: ((percent: Int, phase: String) -> Unit)? = null,): ByteArray?
 browser-engine :: fun BrowserEngine .getStorageValue(key: String, session: Boolean = false): StorageRead?
+browser-engine :: fun BrowserEngine .mutation(script: String): StorageMutation
 browser-engine :: fun BrowserEngine .performanceMetrics(): PerformanceReport?
 browser-engine :: fun BrowserEngine .probePage(wv: WebView, before: QuickProbe? = null): BrowserEngine.PostActionState
 browser-engine :: fun BrowserEngine .readQuickProbe(wv: WebView): QuickProbe?
@@ -174,7 +175,6 @@ browser-engine :: fun OverlayLifecycleOwner.onStop()
 browser-engine :: fun OverlayLifecycleOwner.performRestore()
 browser-engine :: fun WebView .evaluateAsInt(js: String): Int?
 browser-engine :: fun WebView .evaluateAwait(script: String): String?
-browser-engine :: fun mutation(script: String): StorageMutation
 browser-engine :: fun readPageGeometry(wv: WebView): PageGeometry?
 browser-engine :: fun waitConditionLoop(wv: WebView, mode: String, value: String, countPred: CountPredicate?, timeoutMs: Long, pollMs: Long, evaluateBoolean: suspend (WebView, String) -> Boolean, evaluateJson: suspend (WebView, String) -> String,): BrowserEngine.WaitOutcome
 browser-engine :: interface BrowserEngine.ActiveTabListener
