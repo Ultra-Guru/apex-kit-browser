@@ -56,7 +56,8 @@ class NetworkInterceptor private constructor(private val engine: BrowserEngine) 
         val isRegex: Boolean = false,
         val description: String = "",
     ) {
-        internal val regex: java.util.regex.Regex? by lazy {
+        // kotlin.text.Regex（java.util.regex 无 Regex 类型，是 Pattern）
+        internal val regex: Regex? by lazy {
             if (isRegex) runCatching { pattern.toRegex(RegexOption.IGNORE_CASE) }.getOrNull() else null
         }
 
@@ -230,7 +231,10 @@ class NetworkInterceptor private constructor(private val engine: BrowserEngine) 
             view: WebView?,
             request: WebResourceRequest?,
         ): WebResourceResponse? {
-            if (request == null) return delegate.shouldInterceptRequest(view, request)
+            // 框架不会传 null（平台类型的防御位）；基类行为即「不拦截」，
+            // 不转发 null 给 delegate —— 已知为 null 的 WebResourceRequest?
+            // 同时适配 String!/WebResourceRequest! 两个重载，转发即歧义。
+            if (request == null) return null
             val blocked = interceptor.maybeBlock(request)
             if (blocked != null) return blocked
             return delegate.shouldInterceptRequest(view, request)

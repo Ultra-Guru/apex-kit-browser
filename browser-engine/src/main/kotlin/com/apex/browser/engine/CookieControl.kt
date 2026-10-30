@@ -54,7 +54,9 @@ suspend fun BrowserEngine.setCookie(
     }
     return withContext(Dispatchers.Main) {
         val cm = runCatching { CookieManager.getInstance() }.getOrNull() ?: return@withContext false
-        val ok = runCatching { cm.setCookie(url, sb.toString()) }.getOrDefault(false)
+        // setCookie 返回 void（平台类型）—— isSuccess 判定，避免 getOrDefault
+        // 把 Result<Unit!> 与 Boolean 统一成 Any 的类型陷阱
+        val ok = runCatching { cm.setCookie(url, sb.toString()) }.isSuccess
         if (ok) runCatching { cm.flush() }
         ok
     }
@@ -81,7 +83,7 @@ suspend fun BrowserEngine.clearCookiesForDomain(url: String): Int {
         }.distinct()
         var removed = 0
         for (n in names) {
-            if (runCatching { cm.setCookie(url, "$n=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT") }.getOrDefault(false)) {
+            if (runCatching { cm.setCookie(url, "$n=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT") }.isSuccess) {
                 removed++
             }
         }

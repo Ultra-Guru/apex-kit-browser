@@ -98,7 +98,9 @@ suspend fun BrowserEngine.storageSize(session: Boolean = false): Int? {
 
 /* ───────────── 内部：信封执行与解析 ───────────── */
 
-private suspend fun mutation(script: String): StorageMutation {
+// 扩展形态：mutation 内部要调同为 BrowserEngine 扩展的 runStorageEnvelope
+//（无接收者的顶层函数解析不到扩展 —— CI 抓到过一次）。
+private suspend fun BrowserEngine.mutation(script: String): StorageMutation {
     val env = runStorageEnvelope(script)
         ?: return StorageMutation(ok = false, error = "执行失败（无激活标签页或脚本超时）")
     return if (env.str("ok") == "true") StorageMutation(ok = true)
