@@ -34,15 +34,28 @@ object LayoutAnalysis {
 
     /**
      * 把 [BrowserScript.layoutCollectJs] 回传的 JSON **内层**文本格式化为
-     * Agent 可读报告。解析失败时返回带原始片段的错误说明（调用方无需再包
-     * try/catch）。
+     * Agent 可读报告。解析失败（含形状不匹配）返回带原始片段的错误说明
+     *（调用方无需再包 try/catch —— 防御性解析纪律）。
      */
     fun formatReport(payload: String): String {
         val obj = try {
             json.parseToJsonElement(payload).jsonObject
         } catch (e: Exception) {
-            return "(采集结果解析失败：${e.message?.take(80) ?: e::class.simpleName}；原始片段: ${payload.take(120)})"
+            return parseFailNotice(e, payload)
         }
+        return try {
+            format(obj)
+        } catch (e: Exception) {
+            // 形状不匹配（某字段不是预期类型）：与语法错误同一归宿 ——
+            // Agent 面对的永远是报告文本或明确的失败说明，不是异常。
+            parseFailNotice(e, payload)
+        }
+    }
+
+    private fun parseFailNotice(e: Exception, payload: String): String =
+        "(采集结果解析失败：${e.message?.take(80) ?: e::class.simpleName}；原始片段: ${payload.take(120)})"
+
+    private fun format(obj: JsonObject): String {
         val sb = StringBuilder()
         val vp = obj["viewport"]?.jsonObject
         val vw = str(vp?.get("w"))

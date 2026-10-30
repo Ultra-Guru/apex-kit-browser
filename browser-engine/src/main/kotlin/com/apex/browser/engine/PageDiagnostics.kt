@@ -38,7 +38,7 @@ import kotlin.coroutines.resume
  * null = 执行失败（无激活标签页 / 超时 / JS 异常 / 页面无 form 概念）。
  */
 suspend fun BrowserEngine.detectForms(): FormReport? =
-    diagnose(BrowserScript.formDetectJs(), FormReportParser::parse)
+    diagnose(BrowserScript.formDetectJs()) { FormReportParser.parse(it) }
 
 /**
  * 性能指标：Navigation Timing 里程碑 + Resource Timing 按类型聚合 +
@@ -46,14 +46,14 @@ suspend fun BrowserEngine.detectForms(): FormReport? =
  * performance API）。
  */
 suspend fun BrowserEngine.performanceMetrics(): PerformanceReport? =
-    diagnose(BrowserScript.PERFORMANCE_METRICS_JS, PerformanceReportParser::parse)
+    diagnose(BrowserScript.PERFORMANCE_METRICS_JS) { PerformanceReportParser.parse(it) }
 
 /**
  * iframe / frame 枚举：嵌入框的 src / name / title / 尺寸 / sandbox /
  * 同源判定。null = 执行失败。
  */
 suspend fun BrowserEngine.frameList(): FrameReport? =
-    diagnose(BrowserScript.FRAME_LIST_JS, FrameReportParser::parse)
+    diagnose(BrowserScript.FRAME_LIST_JS) { FrameReportParser.parse(it) }
 
 /**
  * 布局分析（自宿主 BrowserLayoutTools 下沉）：真实渲染几何报告文本 ——

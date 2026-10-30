@@ -80,20 +80,21 @@ object FrameReportParser {
         val text = raw?.trim()?.removeSurrounding("\"")?.trim() ?: return null
         if (text.isEmpty() || text == "null") return null
         val obj = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null
-        val frames = obj["frames"]?.jsonArray?.mapNotNull { el ->
-            runCatching {
-                val f = el.jsonObject
-                FrameInfo(
-                    src = f.strOr("src"),
-                    name = f.strOr("name"),
-                    title = f.strOr("title"),
-                    width = f.intOr("width"),
-                    height = f.intOr("height"),
-                    sandbox = f.strOr("sandbox"),
-                    sameOrigin = f.strOr("sameOrigin") == "true",
-                )
-            }.getOrNull()
-        } ?: emptyList()
+        val frames = runCatching { obj["frames"]?.jsonArray }.getOrNull()
+            ?.mapNotNull { el ->
+                runCatching {
+                    val f = el.jsonObject
+                    FrameInfo(
+                        src = f.strOr("src"),
+                        name = f.strOr("name"),
+                        title = f.strOr("title"),
+                        width = f.intOr("width"),
+                        height = f.intOr("height"),
+                        sandbox = f.strOr("sandbox"),
+                        sameOrigin = f.strOr("sameOrigin") == "true",
+                    )
+                }.getOrNull()
+            } ?: emptyList()
         return FrameReport(
             total = obj.intOr("total"),
             truncated = obj.strOr("truncated") == "true",

@@ -146,28 +146,30 @@ object PerformanceReportParser {
                 )
             }.getOrNull()
         }
-        val buckets = obj["buckets"]?.jsonObject?.entries?.map { (type, v) ->
-            runCatching {
-                val b = v.jsonObject
-                ResourceBucket(
-                    type = type,
-                    count = b.intOr("count"),
-                    bytes = b.longOr("bytes"),
-                    maxDuration = b.intOr("maxDuration"),
-                )
-            }.getOrNull()
-        }?.filterNotNull() ?: emptyList()
-        val slowest = obj["slowest"]?.jsonArray?.mapNotNull { el ->
-            runCatching {
-                val s = el.jsonObject
-                SlowResource(
-                    url = s.strOr("url"),
-                    duration = s.intOr("duration"),
-                    bytes = s.longOr("bytes"),
-                    type = s.strOr("type"),
-                )
-            }.getOrNull()
-        } ?: emptyList()
+        val buckets = runCatching { obj["buckets"]?.jsonObject?.entries }.getOrNull()
+            ?.map { (type, v) ->
+                runCatching {
+                    val b = v.jsonObject
+                    ResourceBucket(
+                        type = type,
+                        count = b.intOr("count"),
+                        bytes = b.longOr("bytes"),
+                        maxDuration = b.intOr("maxDuration"),
+                    )
+                }.getOrNull()
+            }?.filterNotNull() ?: emptyList()
+        val slowest = runCatching { obj["slowest"]?.jsonArray }.getOrNull()
+            ?.mapNotNull { el ->
+                runCatching {
+                    val s = el.jsonObject
+                    SlowResource(
+                        url = s.strOr("url"),
+                        duration = s.intOr("duration"),
+                        bytes = s.longOr("bytes"),
+                        type = s.strOr("type"),
+                    )
+                }.getOrNull()
+            } ?: emptyList()
         return PerformanceReport(
             navigation = nav,
             resourceCount = obj.intOr("resourceCount"),

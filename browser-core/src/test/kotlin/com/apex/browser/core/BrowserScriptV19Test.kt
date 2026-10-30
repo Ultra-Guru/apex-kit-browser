@@ -228,6 +228,17 @@ class FormReportParserTest {
     }
 
     @Test
+    fun `shape mismatch does not throw`() {
+        // 防御性解析纪律：字段类型不对给默认值，不上抛
+        val weird = """{"v":1,"totalForms":1,"forms":{"oops":true},"orphans":"not-array"}"""
+        val r = FormReportParser.parse(weird)
+        assertNotNull(r)
+        assertEquals(1, r!!.totalForms)
+        assertTrue(r.forms.isEmpty())
+        assertTrue(r.orphans.isEmpty())
+    }
+
+    @Test
     fun `empty report renders no-form notice`() {
         val r = FormReportParser.parse("""{"v":1,"totalForms":0,"forms":[],"orphanCount":0,"orphans":[]}""")
         assertNotNull(r)
@@ -282,10 +293,17 @@ class PerformanceReportParserTest {
     }
 
     @Test
-    fun `garbage returns null`() {
+    fun `garbage returns null and shape mismatch stays silent`() {
         assertNull(PerformanceReportParser.parse(null))
         assertNull(PerformanceReportParser.parse("null"))
         assertNull(PerformanceReportParser.parse("not json"))
+        // buckets/slowest 形状不对：给空聚合而非异常
+        val weird = """{"v":1,"navigation":null,"resourceCount":5,"buckets":[1,2],"slowest":"x"}"""
+        val r = PerformanceReportParser.parse(weird)
+        assertNotNull(r)
+        assertEquals(5, r!!.resourceCount)
+        assertTrue(r.buckets.isEmpty())
+        assertTrue(r.slowest.isEmpty())
     }
 }
 
@@ -317,12 +335,17 @@ class FrameReportParserTest {
     }
 
     @Test
-    fun `empty frames render notice and garbage returns null`() {
+    fun `empty frames render notice garbage and shape mismatch stay silent`() {
         val r = FrameReportParser.parse("""{"v":1,"total":0,"truncated":false,"frames":[]}""")
         assertNotNull(r)
         assertTrue(r!!.toAgentText().contains("无 iframe"))
         assertNull(FrameReportParser.parse("garbage"))
         assertNull(FrameReportParser.parse(null))
+        // frames 形状不对：空报告而非异常
+        val weird = FrameReportParser.parse("""{"v":1,"total":3,"frames":"oops"}""")
+        assertNotNull(weird)
+        assertEquals(3, weird!!.total)
+        assertTrue(weird.frames.isEmpty())
     }
 }
 
@@ -375,6 +398,9 @@ class LayoutAnalysisTest {
         val report = LayoutAnalysis.formatReport("{not json")
         assertTrue(report.contains("解析失败"))
         assertTrue(report.contains("原始片段"))
+        // 形状不匹配同样归宿（viewport 不是对象）：报告文本而非异常
+        val weird = LayoutAnalysis.formatReport("""{"viewport":"oops","landmarks":[],"flex":[]}""")
+        assertTrue(weird.contains("解析失败"))
     }
 
     @Test

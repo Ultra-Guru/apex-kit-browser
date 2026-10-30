@@ -154,12 +154,13 @@ object FormReportParser {
         val text = raw?.trim()?.removeSurrounding("\"")?.trim() ?: return null
         if (text.isEmpty() || text == "null") return null
         val obj = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null
-        val forms = obj["forms"]?.jsonArray?.mapNotNull { el ->
-            runCatching { parseForm(el.jsonObject) }.getOrNull()
-        } ?: emptyList()
-        val orphans = obj["orphans"]?.jsonArray?.mapNotNull { el ->
-            runCatching { parseField(el.jsonObject) }.getOrNull()
-        } ?: emptyList()
+        // 形状不匹配（forms 字段不是数组等）同样防御：坏数据给默认值而非异常
+        val forms = runCatching { obj["forms"]?.jsonArray }.getOrNull()
+            ?.mapNotNull { el -> runCatching { parseForm(el.jsonObject) }.getOrNull() }
+            ?: emptyList()
+        val orphans = runCatching { obj["orphans"]?.jsonArray }.getOrNull()
+            ?.mapNotNull { el -> runCatching { parseField(el.jsonObject) }.getOrNull() }
+            ?: emptyList()
         return FormReport(
             totalForms = obj.int("totalForms") ?: forms.size,
             forms = forms,
