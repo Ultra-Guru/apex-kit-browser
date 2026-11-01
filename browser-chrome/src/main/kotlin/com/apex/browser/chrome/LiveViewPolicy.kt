@@ -3,7 +3,8 @@ package com.apex.browser.chrome
 /*
  * LiveViewPolicy —— 实时页面悬浮窗的呈现决策逻辑（纯 JVM，可单测）。
  *
- * 背景：AGENT_DRIVING 期间用户要能「看见 Agent 正在开的真实页面」（实时画面），
+ * 背景（v2.1.1 修订）：AGENT_DRIVING 期间**默认不弹实时卡**（GHOST 无头宿主保测量），
+ * 用户点悬浮球才唤出画面——自动化启动只出悬浮球；
  * 而完整浏览器 chrome（BrowserChrome）只在人工接管（WAITING_HUMAN）时展开。
  * 本策略把「窗口处于什么呈现态」的纯决策从 Android View 代码里剥离出来，
  * 让状态机行为可以用普通 JVM 测试锁住，View 层只负责执行。
@@ -63,8 +64,11 @@ object LiveViewPolicy {
         LiveViewEvent.STATE_HIDDEN -> LiveViewTransition(LiveViewMode.GONE, userDismissed = false)
 
         LiveViewEvent.STATE_DRIVING ->
-            if (userDismissed) LiveViewTransition(LiveViewMode.GHOST, userDismissed = true)
-            else LiveViewTransition(LiveViewMode.VISIBLE, userDismissed = false)
+            // v2.1.1（用户裁决）：自动化启动**不再弹出实时卡**——保持 GHOST 无头宿主
+            // （窗口仍挂 WindowManager 保 WebView 测量，视觉零打扰），画面只在用户
+            // 点悬浮球（USER_SHOW / USER_TOGGLE）时唤出。userDismissed 语义保留：
+            // 用户收起过就不再自动复现；WAITING_HUMAN→交还后同样回 GHOST 而非弹卡。
+            LiveViewTransition(LiveViewMode.GHOST, userDismissed = userDismissed)
 
         LiveViewEvent.STATE_WAITING -> LiveViewTransition(LiveViewMode.GHOST, userDismissed = userDismissed)
 

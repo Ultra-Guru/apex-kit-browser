@@ -18,19 +18,19 @@ class LiveViewPolicyTest {
     private val G = LiveViewMode.GHOST
     private val X = LiveViewMode.GONE
 
-    /* ---- STATE_DRIVING：自动弹出契约 ---- */
+    /* ---- STATE_DRIVING：v2.1.1 起默认 GHOST（自动化启动不弹卡，点球唤出）---- */
 
     @Test
-    fun `驾驶开始且用户未收起 - 从 GONE 弹出 VISIBLE`() {
+    fun `驾驶开始 - 从 GONE 进 GHOST 无头宿主不弹卡`() {
         val t = LiveViewPolicy.resolve(LiveViewEvent.STATE_DRIVING, X, userDismissed = false)
-        assertEquals(V, t.mode)
+        assertEquals(G, t.mode)
         assertFalse(t.userDismissed)
     }
 
     @Test
-    fun `驾驶开始且用户未收起 - 从 GHOST 回到 VISIBLE`() {
+    fun `驾驶开始 - 保持 GHOST 无头宿主`() {
         val t = LiveViewPolicy.resolve(LiveViewEvent.STATE_DRIVING, G, userDismissed = false)
-        assertEquals(V, t.mode)
+        assertEquals(G, t.mode)
         assertFalse(t.userDismissed)
     }
 
@@ -68,10 +68,10 @@ class LiveViewPolicyTest {
     }
 
     @Test
-    fun `会话结束复位后再次驾驶 - 自动弹出恢复`() {
+    fun `会话结束复位后再次驾驶 - 仍默认 GHOST 不弹卡`() {
         val gone = LiveViewPolicy.resolve(LiveViewEvent.STATE_HIDDEN, G, true)
         val again = LiveViewPolicy.resolve(LiveViewEvent.STATE_DRIVING, gone.mode, gone.userDismissed)
-        assertEquals(V, again.mode)
+        assertEquals(G, again.mode)
         assertFalse(again.userDismissed)
     }
 
