@@ -1,0 +1,389 @@
+{
+  "total_count": 2,
+  "jobs": [
+    {
+      "id": 124735354854,
+      "run_id": 41268210142,
+      "workflow_name": "CI",
+      "head_branch": "feat/agent-browser-runtime",
+      "run_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268210142",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOU5hYLs8AAAAdCs535g",
+      "head_sha": "21b7cd5d2dbe28a434c42f2cf40a11d737a8a149",
+      "url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/jobs/124735354854",
+      "html_url": "https://github.com/Ultra-Guru/apex-kit-browser/actions/runs/41268210142/job/124735354854",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-11-01T03:12:11Z",
+      "started_at": "2026-11-01T03:12:13Z",
+      "completed_at": "2026-11-01T03:13:13Z",
+      "name": "Build & Test (3 modules)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-01T03:12:14Z",
+          "completed_at": "2026-11-01T03:12:15Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-01T03:12:15Z",
+          "completed_at": "2026-11-01T03:12:16Z"
+        },
+        {
+          "name": "Set up JDK 17",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-01T03:12:16Z",
+          "completed_at": "2026-11-01T03:12:16Z"
+        },
+        {
+          "name": "Configure pre-installed Android SDK",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-01T03:12:16Z",
+          "completed_at": "2026-11-01T03:12:16Z"
+        },
+        {
+          "name": "Set up Gradle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-11-01T03:12:16Z",
+          "completed_at": "2026-11-01T03:12:22Z"
+        },
+        {
+          "name": "Build all modules (compile only first for fast feedback)",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 6,
+          "started_at": "2026-11-01T03:12:22Z",
+          "completed_at": "2026-11-01T03:13:11Z"
+        },
+        {
+          "name": "browser-core pure-JVM tests",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-11-01T03:13:11Z",
+          "completed_at": "2026-11-01T03:13:11Z"
+        },
+        {
+          "name": "browser-engine unit tests",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-11-01T03:13:11Z",
+          "completed_at": "2026-11-01T03:13:11Z"
+        },
+        {
+          "name": "browser-chrome unit tests",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 9,
+          "started_at": "2026-11-01T03:13:11Z",
+          "completed_at": "2026-11-01T03:13:11Z"
+        },
+        {
+          "name": "publishToMavenLocal smoke check",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-11-01T03:13:11Z",
+          "completed_at": "2026-11-01T03:13:11Z"
+        },
+        {
+          "name": "Upload test reports on failure",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-11-01T03:13:11Z",
+          "completed_at": "2026-11-01T03:13:11Z"
+        },
+        {
+          "name": "Post Set up Gradle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-11-01T03:13:11Z",
+          "completed_at": "2026-11-01T03:13:12Z"
+        },
+        {
+          "name": "Post Set up JDK 17",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-11-01T03:13:12Z",
+          "completed_at": "2026-11-01T03:13:12Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-11-01T03:13:12Z",
+          "completed_at": "2026-11-01T03:13:12Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-11-01T03:13:12Z",
+          "completed_at": "2026-11-01T03:13:12Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/check-runs/124735354854",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000012219,
+      "runner_name": "GitHub Actions 1000012219",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 124735355066,
+      "run_id": 41268210142,
+      "workflow_name": "CI",
+      "head_branch": "feat/agent-browser-runtime",
+      "run_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268210142",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOU5hYLs8AAAAdCs54ug",
+      "head_sha": "21b7cd5d2dbe28a434c42f2cf40a11d737a8a149",
+      "url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/jobs/124735355066",
+      "html_url": "https://github.com/Ultra-Guru/apex-kit-browser/actions/runs/41268210142/job/124735355066",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-11-01T03:12:11Z",
+      "started_at": "2026-11-01T03:12:14Z",
+      "completed_at": "2026-11-01T03:14:52Z",
+      "name": "Consumer Check (host app compiles)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-01T03:12:15Z",
+          "completed_at": "2026-11-01T03:12:18Z"
+        },
+        {
+          "name": "Checkout apex-kit-browser",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-01T03:12:18Z",
+          "completed_at": "2026-11-01T03:12:19Z"
+        },
+        {
+          "name": "Checkout host app (Android-Guru-Agent)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-01T03:12:19Z",
+          "completed_at": "2026-11-01T03:12:23Z"
+        },
+        {
+          "name": "Resolve sibling kit pins from host locks",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-01T03:12:23Z",
+          "completed_at": "2026-11-01T03:12:23Z"
+        },
+        {
+          "name": "Checkout apex-standard-kit (pinned by host lock)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-11-01T03:12:23Z",
+          "completed_at": "2026-11-01T03:12:23Z"
+        },
+        {
+          "name": "Checkout apex-workspace-kit (pinned by host lock)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-11-01T03:12:23Z",
+          "completed_at": "2026-11-01T03:12:24Z"
+        },
+        {
+          "name": "Checkout apex-kit-loom (pinned by host lock)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-11-01T03:12:24Z",
+          "completed_at": "2026-11-01T03:12:25Z"
+        },
+        {
+          "name": "Checkout apex-kit-courier (pinned by host lock)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-11-01T03:12:25Z",
+          "completed_at": "2026-11-01T03:12:26Z"
+        },
+        {
+          "name": "Checkout apex-kit-memory (pinned by host lock)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-11-01T03:12:26Z",
+          "completed_at": "2026-11-01T03:12:26Z"
+        },
+        {
+          "name": "Alias sibling kit dirs (rename transition) + verify wiring",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-11-01T03:12:26Z",
+          "completed_at": "2026-11-01T03:12:26Z"
+        },
+        {
+          "name": "Set up JDK 17",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-11-01T03:12:26Z",
+          "completed_at": "2026-11-01T03:12:26Z"
+        },
+        {
+          "name": "Configure pre-installed Android SDK (+ NDK for host native deps)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-11-01T03:12:26Z",
+          "completed_at": "2026-11-01T03:12:46Z"
+        },
+        {
+          "name": "Set up Gradle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-11-01T03:12:46Z",
+          "completed_at": "2026-11-01T03:12:57Z"
+        },
+        {
+          "name": "Verify composite build substitution resolves",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-11-01T03:12:57Z",
+          "completed_at": "2026-11-01T03:13:24Z"
+        },
+        {
+          "name": "Compile host app with this lib version",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 15,
+          "started_at": "2026-11-01T03:13:24Z",
+          "completed_at": "2026-11-01T03:14:46Z"
+        },
+        {
+          "name": "Host unit tests (app + tool-registry)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 16,
+          "started_at": "2026-11-01T03:14:46Z",
+          "completed_at": "2026-11-01T03:14:46Z"
+        },
+        {
+          "name": "Post Set up Gradle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24,
+          "started_at": "2026-11-01T03:14:46Z",
+          "completed_at": "2026-11-01T03:14:46Z"
+        },
+        {
+          "name": "Post Set up JDK 17",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-11-01T03:14:46Z",
+          "completed_at": "2026-11-01T03:14:47Z"
+        },
+        {
+          "name": "Post Checkout apex-kit-memory (pinned by host lock)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 26,
+          "started_at": "2026-11-01T03:14:47Z",
+          "completed_at": "2026-11-01T03:14:47Z"
+        },
+        {
+          "name": "Post Checkout apex-kit-courier (pinned by host lock)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 27,
+          "started_at": "2026-11-01T03:14:47Z",
+          "completed_at": "2026-11-01T03:14:47Z"
+        },
+        {
+          "name": "Post Checkout apex-kit-loom (pinned by host lock)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28,
+          "started_at": "2026-11-01T03:14:47Z",
+          "completed_at": "2026-11-01T03:14:47Z"
+        },
+        {
+          "name": "Post Checkout apex-workspace-kit (pinned by host lock)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29,
+          "started_at": "2026-11-01T03:14:47Z",
+          "completed_at": "2026-11-01T03:14:47Z"
+        },
+        {
+          "name": "Post Checkout apex-standard-kit (pinned by host lock)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 30,
+          "started_at": "2026-11-01T03:14:47Z",
+          "completed_at": "2026-11-01T03:14:48Z"
+        },
+        {
+          "name": "Post Checkout host app (Android-Guru-Agent)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 31,
+          "started_at": "2026-11-01T03:14:48Z",
+          "completed_at": "2026-11-01T03:14:48Z"
+        },
+        {
+          "name": "Post Checkout apex-kit-browser",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 32,
+          "started_at": "2026-11-01T03:14:48Z",
+          "completed_at": "2026-11-01T03:14:48Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 33,
+          "started_at": "2026-11-01T03:14:48Z",
+          "completed_at": "2026-11-01T03:14:48Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/check-runs/124735355066",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000012223,
+      "runner_name": "GitHub Actions 1000012223",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

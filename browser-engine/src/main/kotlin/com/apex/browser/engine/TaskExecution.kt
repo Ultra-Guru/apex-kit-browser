@@ -113,7 +113,7 @@ private suspend fun BrowserEngine.runTaskBody(
         )
     }
 
-    try {
+    return try {
         withTimeout(totalTimeoutMs.coerceIn(5_000, 600_000)) {
             for ((index, step) in steps.withIndex()) {
                 // 每步前重查人工接管：接管即中止（评审「接管时在途任务 SUPERSEDED」口径）
