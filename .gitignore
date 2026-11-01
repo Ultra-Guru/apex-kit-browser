@@ -18,3 +18,13 @@ local.properties
 # Python bytecode from the scripts/ gates
 __pycache__/
 *.pyc
+
+# 本地 CI 诊断临时文件（不入库）
+build_log.txt
+*_log.txt
+runs*.json
+run.json
+jobs.json
+pr_body.json
+pr_result.json
+pr_list.json

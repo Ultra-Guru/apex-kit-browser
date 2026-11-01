@@ -78,6 +78,12 @@ data class PageSnapshot(
      * null 表示期间无弹窗事件。字段为带默认值的尾参，既有构造点零改动。
      */
     val dialogNotice: String? = null,
+    /**
+     * 快照所属文档 id（`d<tabId>g<generation>`，v2.1.0）。空串 = 未填充（无激活标签页
+     * 等退化路径）。模型把它带回 `expected_doc_id` 即可获得 STALE_DOCUMENT 前置校验
+     * （评审 P1-1 快照过期闭环）；DIFF 模式以本字段做基准命中判定。
+     */
+    val docId: String = "",
 )
 
 /** 从 JS 注入点拿到的原始元素（序列化自 injected JS） */
