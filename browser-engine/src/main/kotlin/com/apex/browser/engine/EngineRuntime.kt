@@ -171,7 +171,7 @@ internal class TabWorker(val tabId: Int) {
  * 绝不拿旧页当 DIFF 基准（评审 P1-1/P2 缓存纪律）。
  */
 internal class SnapshotCache {
-    private data class Cached(val docId: String, val elements: List<DomElement>)
+    internal data class Cached(val docId: String, val elements: List<DomElement>)
 
     private val perTab = ConcurrentHashMap<Int, Cached>()
 
