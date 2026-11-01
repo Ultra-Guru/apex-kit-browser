@@ -39,7 +39,10 @@ object BrowserScript {
      * 且失败方式是无声地少给几个 ref。现改为 `getBoundingClientRect` 与
      * `display` / `visibility` / `opacity` 联合判定。
      */
-    fun snapshotJs(strategy: DomParser.SnapshotStrategy = DomParser.SnapshotStrategy.INTERACTIVE_ONLY): String {
+    fun snapshotJs(
+        strategy: DomParser.SnapshotStrategy = DomParser.SnapshotStrategy.INTERACTIVE_ONLY,
+        rootSelector: String? = null,
+    ): String {
         val sel = when (strategy) {
             DomParser.SnapshotStrategy.INTERACTIVE_ONLY ->
                 "a,button,input,select,textarea,summary,area[href]," +
@@ -65,7 +68,11 @@ object BrowserScript {
           // refLookupJs 用属性全等比较，天然兼容带后缀的 ref。
           var seen = {};
           var interactiveSel = ${JsLiteral.string(sel)};
-          var all = document.querySelectorAll(interactiveSel);
+          // v2.1.0 FOCUSED 模式：rootSelector 非空时只在指定子树内采集（增量上下文——
+          // 模型只吃局部，不再反复吃全页）。root 不存在时返回空集（truncated 如实上报）。
+          var rootEl = ${if (rootSelector != null) "(function(){try{return document.querySelector(" + JsLiteral.string(rootSelector) + ");}catch(e){return null;}})()" else "null"};
+          var all = rootEl ? rootEl.querySelectorAll(interactiveSel)
+                           : document.querySelectorAll(interactiveSel);
           // 匹配总数先记下来：触顶截断时必须让模型知道「页面里还有更多」，
           // 否则它会把返回的这一批当成全部，据此规划动作必然踩空。
           var total = all.length;

@@ -9,7 +9,7 @@ browser-engine :: class BrowserEngine.HandoffLockedException(message: String) : 
 browser-engine :: class BrowserEngine.NavResult(val success: Boolean, val selectorFound: Boolean, val timedOut: Boolean)
 browser-engine :: class BrowserEngine.PostActionState(val success: Boolean, val urlChanged: Boolean = false, val newElementsCount: Int = 0, val pageTitle: String =, val scrollY: Int = 0, val failReason: String? = null, val currentUrl: String =,)
 browser-engine :: class BrowserEngine.ScrollResult(val scrolled: Boolean, val newElementsDetected: Int = 0)
-browser-engine :: class BrowserEngine.Tab(val id: Int, val webView: WebView, var title: String =, var url: String =, @Volatile var pageFinished: Boolean = false, @Volatile var netHooked: Boolean = false,)
+browser-engine :: class BrowserEngine.Tab(val id: Int, val webView: WebView, var title: String =, var url: String =, @Volatile var pageFinished: Boolean = false, @Volatile var netHooked: Boolean = false, @Volatile var docGeneration: Long = 0,)
 browser-engine :: class BrowserEngine.WaitOutcome(val matched: Boolean, val detail: String, val elapsedMs: Long)
 browser-engine :: class BrowserTracer(private val capacity: Int = 100)
 browser-engine :: class BrowserTracer.Entry(val timestamp: String, val tool: String, val params: String, val resultSummary: String, val durationMs: Long, val url: String?, val state: String, val error: String? = null,)
@@ -18,6 +18,8 @@ browser-engine :: class ConsoleCapture.Entry(val level: String, val message: Str
 browser-engine :: class DialogArbiter internal constructor(private val tracer: BrowserTracer)
 browser-engine :: class DialogArbiter.DialogInfo(val id: Int, val type: String, val message: String, val defaultValue: String?,)
 browser-engine :: class DialogArbiter.Mode
+browser-engine :: class DiffResult.Ok(val diff: DomDiff.Diff, val currentDocId: String) : DiffResult
+browser-engine :: class DiffResult.Stale(val reason: String, val currentDocId: String?) : DiffResult
 browser-engine :: class DownloadCenter private constructor(appContext: Context, private val engine: BrowserEngine,)
 browser-engine :: class DownloadCenter.DownloadStatus(val dmId: Long, val fileName: String, val url: String, val mimeType: String?, val state: String, val bytesSoFar: Long = 0L, val totalBytes: Long = -1L, val reason: Int = 0, val enqueuedAt: Long = 0L,)
 browser-engine :: class EngineDisplayController private constructor(private val engine: BrowserEngine,)
@@ -46,28 +48,49 @@ browser-engine :: fun BookmarkStore.search(query: String, limit: Int = 50): List
 browser-engine :: fun BookmarkStore.touch(id: String): Boolean
 browser-engine :: fun BookmarkStoreFactory.get(context: Context): BookmarkStore
 browser-engine :: fun BookmarkStoreFactory.reset()
+browser-engine :: fun BrowserEngine .activeDocId(): String?
 browser-engine :: fun BrowserEngine .analyzeLayout(maxElements: Int = 1200): String?
 browser-engine :: fun BrowserEngine .awaitActionSettle(wv: WebView, before: QuickProbe?, minMs: Long, maxMs: Long,): BrowserEngine.PostActionState
 browser-engine :: fun BrowserEngine .batchExecute(actions: List<BatchAction>): List<BatchOutcome>
+browser-engine :: fun BrowserEngine .cancelNavigation(navigationId: String, reason: String =): Boolean
+browser-engine :: fun BrowserEngine .cancelTask(taskId: String, reason: String =): Boolean
 browser-engine :: fun BrowserEngine .clearCookiesForDomain(url: String): Int
 browser-engine :: fun BrowserEngine .clearStorage(session: Boolean = false): StorageMutation
 browser-engine :: fun BrowserEngine .detectForms(): FormReport?
 browser-engine :: fun BrowserEngine .diagnoseRaw(script: String): String?
+browser-engine :: fun BrowserEngine .docEvents(navigationOrDocId: String, sinceSeq: Long = 0, limit: Int = 50,): EventPage
+browser-engine :: fun BrowserEngine .evaluateBoolean(wv: WebView, js: String): Boolean
+browser-engine :: fun BrowserEngine .evaluateJson(wv: WebView, js: String): String
+browser-engine :: fun BrowserEngine .execExtractStep(step: TaskStep): StepExec
+browser-engine :: fun BrowserEngine .execMarkThenRef(step: TaskStep, index: Int, isFill: Boolean): StepExec
+browser-engine :: fun BrowserEngine .execNavigateStep(step: TaskStep, index: Int): StepExec
+browser-engine :: fun BrowserEngine .execWaitStep(step: TaskStep): StepExec
+browser-engine :: fun BrowserEngine .executeStep(step: TaskStep, index: Int): StepExec
 browser-engine :: fun BrowserEngine .frameList(): FrameReport?
 browser-engine :: fun BrowserEngine .fullPageScreenshot(maxSegments: Int = DEFAULT_MAX_SEGMENTS, onProgress: ((percent: Int, phase: String) -> Unit)? = null,): ByteArray?
 browser-engine :: fun BrowserEngine .getStorageValue(key: String, session: Boolean = false): StorageRead?
 browser-engine :: fun BrowserEngine .mutation(script: String): StorageMutation
+browser-engine :: fun BrowserEngine .navigateAsync(url: String, newTab: Boolean = false, waitForSelector: String? = null, timeoutMs: Long = 15_000, waitUntil: String =,): NavigationHandle
+browser-engine :: fun BrowserEngine .navigationState(navigationId: String): NavigationState?
 browser-engine :: fun BrowserEngine .performanceMetrics(): PerformanceReport?
 browser-engine :: fun BrowserEngine .probePage(wv: WebView, before: QuickProbe? = null): BrowserEngine.PostActionState
 browser-engine :: fun BrowserEngine .readQuickProbe(wv: WebView): QuickProbe?
+browser-engine :: fun BrowserEngine .releaseNavigation(navigationId: String): Boolean
 browser-engine :: fun BrowserEngine .removeCookie(url: String, name: String, path: String =): Boolean
 browser-engine :: fun BrowserEngine .removeStorageKey(key: String, session: Boolean = false): StorageMutation
+browser-engine :: fun BrowserEngine .requireActiveTab(): BrowserEngine.Tab
+browser-engine :: fun BrowserEngine .runNavigationJob(navigationId: String, tab: BrowserEngine.Tab, url: String, mode: String, waitForSelector: String?, timeoutMs: Long,)
 browser-engine :: fun BrowserEngine .runStorageEnvelope(script: String): JsonObject?
+browser-engine :: fun BrowserEngine .runTask(steps: List<TaskStep>, mode: String =, totalTimeoutMs: Long = 90_000, maxResultChars: Int = 4000,): TaskOutcome
+browser-engine :: fun BrowserEngine .runTaskBody(taskId: String, steps: List<TaskStep>, totalTimeoutMs: Long, maxResultChars: Int,): TaskOutcome
 browser-engine :: fun BrowserEngine .scrollToBoundary(toBottom: Boolean): Boolean
 browser-engine :: fun BrowserEngine .setCookie(url: String, name: String, value: String, path: String =, expiresEpochSeconds: Long? = null,): Boolean
 browser-engine :: fun BrowserEngine .setStorageValue(key: String, value: String, session: Boolean = false): StorageMutation
+browser-engine :: fun BrowserEngine .snapshotDiff(baseDocId: String, tokenBudget: Int = 1600, strategy: DomParser.SnapshotStrategy = DomParser.SnapshotStrategy.INTERACTIVE_ONLY,): DiffResult
+browser-engine :: fun BrowserEngine .snapshotFocused(rootSelector: String, tokenBudget: Int = 1600, strategy: DomParser.SnapshotStrategy = DomParser.SnapshotStrategy.INTERACTIVE_ONLY,): PageSnapshot?
 browser-engine :: fun BrowserEngine .storageKeys(session: Boolean = false): StorageKeys?
 browser-engine :: fun BrowserEngine .storageSize(session: Boolean = false): Int?
+browser-engine :: fun BrowserEngine .taskState(taskId: String): TaskOutcome?
 browser-engine :: fun BrowserEngine.ActiveTabListener.onActiveTabChanged(webView: WebView?)
 browser-engine :: fun BrowserEngine.BrowserUiCallback.onStateChanged(state: BrowserSessionState, url: String?, title: String?)
 browser-engine :: fun BrowserEngine.PostActionState.toText(): String
@@ -85,8 +108,6 @@ browser-engine :: fun BrowserEngine.destroy()
 browser-engine :: fun BrowserEngine.drag(fromRef: String, toRef: String, steps: Int = 14): PostActionState
 browser-engine :: fun BrowserEngine.enterHandoffMode()
 browser-engine :: fun BrowserEngine.evaluateA11yJs(wv: WebView): String
-browser-engine :: fun BrowserEngine.evaluateBoolean(wv: WebView, js: String): Boolean
-browser-engine :: fun BrowserEngine.evaluateJson(wv: WebView, js: String): String
 browser-engine :: fun BrowserEngine.evaluateSnapshotJs(wv: WebView, strategy: DomParser.SnapshotStrategy): String
 browser-engine :: fun BrowserEngine.executeJavaScript(script: String, timeoutMs: Long = 8000): String?
 browser-engine :: fun BrowserEngine.extractContent(mode: BrowserScript.ExtractMode = BrowserScript.ExtractMode.ARTICLE,): String?
@@ -210,6 +231,7 @@ browser-engine :: fun size(): Int
 browser-engine :: fun waitConditionLoop(wv: WebView, mode: String, value: String, countPred: CountPredicate?, timeoutMs: Long, pollMs: Long, evaluateBoolean: suspend (WebView, String) -> Boolean, evaluateJson: suspend (WebView, String) -> String,): BrowserEngine.WaitOutcome
 browser-engine :: interface BrowserEngine.ActiveTabListener
 browser-engine :: interface BrowserEngine.BrowserUiCallback
+browser-engine :: interface DiffResult
 browser-engine :: object BookmarkStoreFactory
 browser-engine :: object BrowserEngineFactory
 browser-engine :: object DownloadCenterFactory
@@ -260,6 +282,10 @@ browser-engine :: val DialogArbiter.DialogInfo.defaultValue : String?
 browser-engine :: val DialogArbiter.DialogInfo.id : Int
 browser-engine :: val DialogArbiter.DialogInfo.message : String
 browser-engine :: val DialogArbiter.DialogInfo.type : String
+browser-engine :: val DiffResult.Ok.currentDocId : String
+browser-engine :: val DiffResult.Ok.diff : DomDiff.Diff
+browser-engine :: val DiffResult.Stale.currentDocId : String?
+browser-engine :: val DiffResult.Stale.reason : String
 browser-engine :: val DownloadCenter.DownloadStatus.bytesSoFar : Long
 browser-engine :: val DownloadCenter.DownloadStatus.dmId : Long
 browser-engine :: val DownloadCenter.DownloadStatus.enqueuedAt : Long
@@ -296,6 +322,7 @@ browser-engine :: val StorageRead.length : Int
 browser-engine :: val StorageRead.truncated : Boolean
 browser-engine :: val StorageRead.value : String
 browser-engine :: val capacity : Int get()
+browser-engine :: var BrowserEngine.Tab.docGeneration : Long
 browser-engine :: var BrowserEngine.Tab.netHooked : Boolean
 browser-engine :: var BrowserEngine.Tab.pageFinished : Boolean
 browser-engine :: var BrowserEngine.Tab.title : String

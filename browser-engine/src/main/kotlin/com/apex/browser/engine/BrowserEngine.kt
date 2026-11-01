@@ -194,6 +194,14 @@ class BrowserEngine private constructor(
     val tracer = BrowserTracer()
 
     /**
+     * v2.1.0 运行时服务（异步导航协调器 / 文档事件注册表 / TabWorker / 任务注册表 /
+     * 快照缓存 / 事件中枢）——见 AsyncNavigation.kt / TaskExecution.kt / TabEventHub.kt。
+     * 惰性创建，随引擎生命周期；宿主回退开关 [EngineRuntime.asyncEnabled]。
+     * **BrowserTracer 仍只是观测旁路：协议权威数据源在 [runtime.navigation] 协调器。**
+     */
+    internal val runtime: EngineRuntime by lazy { EngineRuntime(this) }
+
+    /**
      * JS 弹窗仲裁器（v2.0.0）：alert/confirm/prompt 的三模式处置
      * （AUTO_CONFIRM 默认 = v1.x 行为零漂移；AUTO_DISMISS；MANUAL + respond +
      * 15s 超时兼底）。Agent 控制面见 [DialogArbiter.pendingDialogs] / [respond]，
@@ -226,6 +234,14 @@ class BrowserEngine private constructor(
          * 一次 JS 编译+求值往返）。
          */
         @Volatile var netHooked: Boolean = false,
+        /**
+         * v2.1.0 文档代际：主框架文档**真正提交**时递增（onPageCommitVisible），
+         * 非导航请求次数。docId = `d<tabId>g<docGeneration>`。SPA pushState/
+         * replaceState 同文档导航不递增；重定向链中途若多次触发 commit 可见
+         * 回调，代际仍单调递增且各自是真实文档实例（编号更密，语义不破坏）。
+         * 不持久化——重启归零，旧快照必然 STALE（文档口径）。
+         */
+        @Volatile var docGeneration: Long = 0,
     )
 
     // P0 #11（安全加固基线）：禁止本地文件访问，避免 UXSS / 路径穿越。
@@ -302,6 +318,19 @@ class BrowserEngine private constructor(
                 view?.evaluateJavascript(BrowserScript.STEALTH_JS + "\n" + BrowserScript.NETWORK_MONITOR_JS, null)
                 // v1.8.0 提速：记录注入态，snapshot 跳过重复注入（onPageStarted 复位）
                 tabs.values.firstOrNull { it.webView === view }?.netHooked = true
+                // v2.1.0：pageFinished = DOM_READY 就绪信号（该 tab 活跃导航经协调器
+                // 写入就绪态，等待者广播唤醒；被取代的导航由写守卫自动拒绝）。
+                tabs.values.firstOrNull { it.webView === view }?.let { runtime.onPageFinished(it) }
+            }
+
+            // v2.1.0：主框架文档**提交**信号 —— docGeneration 递增 + 协调器 COMMITTED
+            // + docId 赋值（导航任务与文档生命周期分离的落点：提交前导航无 docId）。
+            // SPA pushState/replaceState 不触发本回调（不递增）；重定向链中途若多次
+            // 触发，代际单调递增（各自是真实文档实例，编号更密语义不破坏）。
+            override fun onPageCommitVisible(view: WebView?, url: String?) {
+                val tab = tabs.values.firstOrNull { it.webView === view } ?: return
+                tab.docGeneration += 1
+                runtime.onPageCommitted(tab, url)
             }
 
             // P0 #4：渲染进程崩溃恢复
@@ -623,7 +652,9 @@ class BrowserEngine private constructor(
      * （不再是 App 一启动就常驻）。已是 AGENT_DRIVING / WAITING_HUMAN /
      * RECOVERING 时不动（保留人工接管锁与重建语义）。
      */
-    private fun markBrowserActiveFromHidden() {
+    // v2.1.0：internal 化 —— 异步导航（AsyncNavigation.kt）与任务引擎（TaskExecution.kt）
+    // 同样需要「HIDDEN → AGENT_DRIVING」的按需唤醒语义，与同步 navigate 同口径。
+    internal fun markBrowserActiveFromHidden() {
         if (currentState == BrowserSessionState.HIDDEN) {
             setState(BrowserSessionState.AGENT_DRIVING)
         }
@@ -655,6 +686,9 @@ class BrowserEngine private constructor(
     fun closeTab(id: Int): Boolean {
         val tab = tabs.remove(id) ?: return false
         tab.webView.destroy()
+        // v2.1.0：tab 关闭 → 该 tab 在途异步导航全部 TAB_CLOSED 终态化（等待者唤醒），
+        // 事件桶/快照缓存/任务随 tab 清理（评审 P0-1 TAB_CLOSED 语义）。
+        runtime.onTabClosed(id)
         if (activeTabId == id) {
             activeTabId = tabs.keys.firstOrNull() ?: 0
             // 关掉的是活动页：活动 WebView 回落/变空，实时悬浮窗需同步换挂或清空
@@ -688,6 +722,10 @@ class BrowserEngine private constructor(
             rebuildActiveWebView()
         }
         val tab = activeTab() ?: run { newTabSync().also { activeTabId = it } }.let { tabs[it]!! }
+        // v2.1.0：同步导航同样注册进协调器（状态/事件单源；该 tab 在途异步导航被
+        // SUPERSEDED——同步与人工路径优先）。等待循环维持既有实现不变（阻塞语义
+        // 零变更），COMMITTED/DOM_READY 由 onPageCommitVisible/onPageFinished 钩子统一写入。
+        runtime.registerSyncNavigation(tab, u)
         onProgress?.invoke(10, "正在加载 $u")
         tab.pageFinished = false
         loadUrlInternal(u)
@@ -1498,43 +1536,9 @@ class BrowserEngine private constructor(
     // QuickProbe / readQuickProbe / probePage / awaitActionSettle / probeChanged
     // 见同包 ActionProbe.kt（internal 扩展；GATE 1 文件预算）。
 
-    // ═════════ JS 求值封装 ═════════
-
-    private suspend fun evaluateBoolean(wv: WebView, js: String): Boolean =
-        suspendCancellableCoroutine { cont ->
-            wv.evaluateJavascript(js) { result -> cont.resume(result == "true") }
-        }
-
-    internal suspend fun evaluateJson(wv: WebView, js: String): String =
-        suspendCancellableCoroutine { cont ->
-            wv.evaluateJavascript(js) { result ->
-                cont.resume(unwrapWebViewJson(result ?: "null"))
-            }
-        }
-
-    /**
-     * 剥掉 WebView.evaluateJavascript 的「JSON 编码回传」外壳（P0 修复，
-     * 2026-10-07 诊断包：browser_input 三连「输入结果解析失败」+ browser_click
-     * 「找不到 ref」+ 熔断器开启）。
-     *
-     * evaluateJavascript 的回调参数是脚本返回值的 **JSON 编码**：本库脚本
-     * 以 `return JSON.stringify({...})` 结尾，回调拿到的其实是该字符串再编码
-     * 一层（`"{\"ok\":true}"`）——直接 `parseToJsonElement(...).jsonObject`
-     * 必抛 IllegalArgumentException。快照路径（snapshot / A11y fallback）早已
-     * 用 `parseToJsonElement(wrapped).jsonPrimitive.content` 剥壳，但
-     * inputText / queryCssRect / readElementAtPoint / fuzzyRelocate /
-     * readQuickProbe / pageType / networkLog 全部漏了——即输入与点击在
-     * 「元素确实存在」时也必然失败，模糊自愈与探针 diff 全部静默失效。
-     *
-     * 统一收敛到本函数：结果首尾是引号（字符串字面量编码）→ 剥一层再回；
-     * 其余形状（布尔/数值/null/对象——脚本不以 stringify 结尾的场景）原样返回。
-     */
-    private fun unwrapWebViewJson(result: String): String {
-        if (result.length < 2 || !result.startsWith("\"") || !result.endsWith("\"")) return result
-        return runCatching {
-            (json.parseToJsonElement(result) as? JsonPrimitive)?.content ?: result
-        }.getOrDefault(result)
-    }
+    // ═════════ JS 求值封装（v2.1.0 迁至同包 EngineEval.kt 扩展 —— GATE 1 预算，
+    // 语义零变更：evaluateBoolean / evaluateJson / unwrapWebViewJson 以
+    // BrowserEngine 扩展形式存在，类内调用点经隐式接收者解析不受影响） ═════════
 
     private fun emptySnapshot() = PageSnapshot(
         url = "", title = "", scrollY = 0, scrollHeight = 0, viewportHeight = 0,
@@ -1566,6 +1570,9 @@ class BrowserEngine private constructor(
     }
 
     fun destroy() {
+        // v2.1.0：先终态化在途异步导航（等待者以 ENGINE_DISPOSED 唤醒）并停掉运行时协程，
+        // 再销毁 WebView —— 顺序不可反（等待者恢复路径可能触碰 WebView）。
+        runtime.onEngineDisposed()
         tabs.values.forEach { it.webView.destroy() }
         tabs.clear()
         flushCookies()

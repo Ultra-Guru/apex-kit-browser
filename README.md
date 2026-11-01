@@ -91,9 +91,9 @@ if (file("../apex-kit-browser").isDirectory) {
 
 ```kotlin
 dependencies {
-    implementation("com.apex.browser:browser-core:2.0.0")
-    implementation("com.apex.browser:browser-engine:2.0.0")
-    implementation("com.apex.browser:browser-chrome:2.0.0")
+    implementation("com.apex.browser:browser-core:2.1.0")
+    implementation("com.apex.browser:browser-engine:2.1.0")
+    implementation("com.apex.browser:browser-chrome:2.1.0")
 }
 ```
 
@@ -310,6 +310,45 @@ Compose UI 层文案继续走 `res/values` + `values-en`（`browser_` 前缀强�
 
 版本：三模块 1.1.0 → **1.2.0**（additive API，全部为带默认值参数的尾参扩展，
 宿主源码兼容）。
+
+## v2.1.0 变更（High-Performance Agent Browser Runtime：异步导航协议 / BrowserTask 编排 / 事件驱动等待 / 增量快照）
+
+v2.0.0 补的是「浏览器本体」；v2.1.0 补的是 **「为 Agent 设计的执行基础设施」** —— 把 N 次
+「模型往返 → 工具执行」压成 1 次，把固定盲轮询换成事件推送。
+
+### 三核
+
+- **异步导航协议**（`NavigationCoordinator` 纯 JVM 状态机）：navigationId（导航任务）/
+  docId（文档 `d<tabId>g<generation>`）/ tabId 三标识分离；`NavigationStatus`（导航怎么样）
+  与 `ReadinessStatus`（条件满足没）**双状态机正交** —— 页面 COMMITTED + readiness TIMEOUT
+  是合法组合。同 tab 新导航 → 旧导航 SUPERSEDED（写守卫拒绝晚到协程写入，等待者广播唤醒）；
+  事件按 docId 分桶环形（oldestSeq/nextSeq/truncated 游标，丢失可检测，桶淘汰返回 EVICTED）；
+  终态 TTL 5min 惰性折叠 EXPIRED；在途上限快速拒绝。同步 `navigate()` 注册进同一协议
+  （等待循环零变更），异步入口 `navigateAsync()` 立即回 handle。commit 信号 =
+  onPageCommitVisible（SPA pushState 不递增，重定向链以最终提交为准）。
+- **BrowserTask 编排**（`runTask`）：一次提交 navigate/wait_for/fill/click/press_key/scroll/
+  extract 步骤序列，**预校验先于执行**（零副作用承诺）、selector 直操作（打 ref 复用既有
+  物理触摸硬化路径）、**歧义检查点**（selector 多命中暂停返回候选，判断节点交模型）、
+  每步 expectedDocId STALE_DOCUMENT 校验、失败默认停不承诺回滚、总超时兜底、
+  mode=background 后台推进 + taskState 查询（模型与浏览器并行工作）。
+- **自适应合并探针等待**（`TabEventHub`）：每 tab 单一等待入口；MutationObserver 页内
+  常驻计数（dom_stable 数据源），Kotlin 侧每次 tick **一次求值**同时读变更号/条件命中/
+  网络在途（JS 合并纪律），节拍自适应（前 1.2s 100ms 快轮 → 250ms）。推送式通道
+  （addJavascriptInterface）被仓库 hardening 门禁禁止（CVE-2012-6636 防线），留待安全
+  评审豁免后接入；network_idle 静默窗口 750ms、监控未注入诚实报 NOT_DETECTED。
+
+### 增量上下文
+
+- `snapshotFocused(rootSelector)`：FOCUSED 子树快照（JS 侧采集，token 只花在局部）；
+- `snapshotDiff(baseDocId)`：DIFF 增量（纯 JVM `DomDiff`，added/removed/updated）；
+- 基准缓存**按 docId 键控**，文档切换即失效 —— 绝不拿旧页当 DIFF 基准；
+- `PageSnapshot` 尾参增 `docId`（模型带回 expectedDocId 即得 STALE_DOCUMENT 前置校验）。
+
+### 其他
+
+- `TabWorker`：同 tab 串行（任务步骤互斥）、跨 tab 并行；回退开关（asyncEnabled）一键降级
+  阻塞语义；`BrowserInteractionStrategy` 策略降级链接口预留（VISUAL 档 P2）。
+- 兼容：全部新面为扩展函数/尾参默认值（additive）；2.0.0 JSON 可无损反序列化（有测试锁定）。
 
 ## v2.0.0 变更（「真浏览器」列车：弹窗支持 / 控制台捕获 / 弹窗仲裁 / 广告订阅 / 会话恢复 / DOM 稳定）
 
