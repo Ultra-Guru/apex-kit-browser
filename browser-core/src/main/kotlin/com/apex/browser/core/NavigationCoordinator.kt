@@ -94,7 +94,7 @@ class NavigationCoordinator(
                 docId = docId,
                 navigationStatus = NavigationStatus.COMMITTED,
                 updatedAtMs = now,
-            ) to listOf(docId to DocEventType.NAV_COMMITTED to detail.ifBlank { "committed" })
+            ) to listOf(Triple(docId, DocEventType.NAV_COMMITTED, detail.ifBlank { "committed" }))
         }
 
     /** 就绪状态写入（DOM_READY / SELECTOR_MATCHED / NETWORK_IDLE / TIMEOUT / NOT_DETECTED）。 */

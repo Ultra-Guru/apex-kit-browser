@@ -18,14 +18,14 @@ class AsyncDocRegistry(
     private val maxBuckets: Int = DEFAULT_MAX_BUCKETS,
 ) {
 
-    private class Bucket {
+    private class Bucket(val capacity: Int) {
         val events = ArrayDeque<DocEvent>()
         /** 桶内现存最早事件 seq（环形覆盖后 > 桶内首条之前的都已丢失）。 */
         var oldestSeq: Long = Long.MAX_VALUE
         fun add(e: DocEvent) {
             events.addLast(e)
             if (oldestSeq == Long.MAX_VALUE) oldestSeq = e.seq
-            while (events.size > bucketCapacity) {
+            while (events.size > capacity) {
                 events.removeFirst()
                 oldestSeq = events.first().seq
             }
@@ -40,7 +40,7 @@ class AsyncDocRegistry(
     fun append(docId: String, type: DocEventType, detail: String, timestampMs: Long): DocEvent {
         synchronized(lock) {
             val e = DocEvent(seq = nextSeqValue++, docId = docId, type = type, detail = detail, timestampMs = timestampMs)
-            buckets.getOrPut(docId) { Bucket() }.add(e)
+            buckets.getOrPut(docId) { Bucket(bucketCapacity) }.add(e)
             // LRU：touch 后重插到尾部，淘汰时移除头部（最旧 docId）
             val b = buckets.remove(docId)!!
             buckets[docId] = b
