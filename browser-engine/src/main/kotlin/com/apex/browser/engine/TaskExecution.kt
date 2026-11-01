@@ -212,10 +212,10 @@ private suspend fun BrowserEngine.execNavigateStep(step: TaskStep, index: Int): 
     val st = runtime.navigation.awaitNavigation(handle.navigationId, if (step.timeoutMs > 0) step.timeoutMs else 15_000) {
         it.readinessStatus in com.apex.browser.core.READINESS_SETTLED || it.isTerminal
     } ?: return StepExec.Done(false, "导航状态丢失（handle 被释放）")
+    val settled = st.readinessStatus in com.apex.browser.core.READINESS_SETTLED
     return when {
         st.isTerminal -> StepExec.Done(false, "导航终态 ${st.navigationStatus}：${st.detail ?: ""}")
-        st.readinessStatus == com.apex.browser.core.ReadinessStatus.TIMEOUT ->
-            StepExec.Done(false, "页面加载超时（${step.timeoutMs}ms 内未到 DOM_READY）")
+        !settled -> StepExec.Done(false, "页面加载超时（未在限时内到 DOM_READY）")
         else -> StepExec.Done(true, "已打开 ${step.url}（docId=${st.docId ?: "-"}）", docId = st.docId)
     }
 }

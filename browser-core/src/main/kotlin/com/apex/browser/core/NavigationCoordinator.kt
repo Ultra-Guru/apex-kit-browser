@@ -3,6 +3,7 @@ package com.apex.browser.core
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * v2.1.0 异步导航协调器（纯 JVM，协议权威数据源）。
@@ -229,7 +230,8 @@ class NavigationCoordinator(
 
     /**
      * 挂起等待直到 [until] 命中或导航进入终态（终态也唤醒，调用方据状态分支）。
-     * 超时返回当前状态（**不抛异常**——等待超时不是导航失败，调用方按 readiness 分支）。
+     * [timeoutMs] 到期返回当前状态快照（**不抛异常**——等待超时不是导航失败，
+     * 调用方按 readiness/navigationStatus 分支）。
      * 任何状态写入广播唤醒全部等待者；协程取消时注销等待者。
      */
     suspend fun awaitNavigation(
@@ -239,23 +241,26 @@ class NavigationCoordinator(
     ): NavigationState? {
         // 快路径：注册前已满足直接返回（避免一次无谓挂起）
         navigationState(navigationId)?.let { if (until(it) || it.isTerminal) return it }
-        return suspendCancellableCoroutine { cont ->
-            lateinit var waiter: Waiter
-            val registered = synchronized(lock) {
-                // 双检：快路径与注册之间可能有写入
-                val s = states[navigationId]
-                when {
-                    s == null -> { cont.resume(null); false }
-                    until(s) || s.isTerminal -> { cont.resume(s); false }
-                    else -> { waiter = Waiter(navigationId, until, cont); waiters += waiter; true }
+        val awaited = withTimeoutOrNull(timeoutMs.coerceAtLeast(1)) {
+            suspendCancellableCoroutine { cont ->
+                lateinit var waiter: Waiter
+                val registered = synchronized(lock) {
+                    // 双检：快路径与注册之间可能有写入
+                    val s = states[navigationId]
+                    when {
+                        s == null -> { cont.resume(null); false }
+                        until(s) || s.isTerminal -> { cont.resume(s); false }
+                        else -> { waiter = Waiter(navigationId, until, cont); waiters += waiter; true }
+                    }
                 }
-            }
-            if (registered) {
-                cont.invokeOnCancellation {
-                    synchronized(lock) { waiters.remove(waiter) }
+                if (registered) {
+                    cont.invokeOnCancellation {
+                        synchronized(lock) { waiters.remove(waiter) }
+                    }
                 }
             }
         }
+        return awaited ?: navigationState(navigationId)
     }
 
     // ───────── 内部 ─────────

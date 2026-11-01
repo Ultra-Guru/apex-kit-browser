@@ -102,6 +102,14 @@ private suspend fun BrowserEngine.runNavigationJob(
         when {
             committed == null -> return // 状态被 release（罕见）：静默收场
             committed.isTerminal -> return // 取消/取代/关闭已终态化，无需推进
+            // 提交超时（awaitNavigation 到期返回 STARTED 快照）= 导航失败
+            committed.navigationStatus == NavigationStatus.STARTED -> {
+                runtime.navigation.terminal(
+                    navigationId, NavigationStatus.FAILED,
+                    "commit 未在 ${timeoutMs}ms 内发生（页面加载极慢或失败）",
+                )
+                return
+            }
             else -> Unit // COMMITTED
         }
 
@@ -112,7 +120,8 @@ private suspend fun BrowserEngine.runNavigationJob(
                 val st = runtime.navigation.awaitNavigation(navigationId, timeoutMs) {
                     it.readinessStatus in READINESS_SETTLED
                 }
-                st?.readinessStatus ?: ReadinessStatus.TIMEOUT
+                if (st != null && st.readinessStatus in READINESS_SETTLED) st.readinessStatus
+                else ReadinessStatus.TIMEOUT
             }
             "selector" -> {
                 val sel = waitForSelector

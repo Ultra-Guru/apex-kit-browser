@@ -1,20 +1,20 @@
 {
-  "id": 41268210142,
+  "id": 41268660155,
   "name": "CI",
-  "node_id": "WFR_kwLOU5hYLs8AAAAJm8bp3g",
+  "node_id": "WFR_kwLOU5hYLs8AAAAJm83Huw",
   "head_branch": "feat/agent-browser-runtime",
-  "head_sha": "21b7cd5d2dbe28a434c42f2cf40a11d737a8a149",
+  "head_sha": "b8033f8fdcaa8d45e3bf828d642510ecf3ee7176",
   "path": ".github/workflows/ci.yml",
   "display_title": "feat(v2.1.0): High-Performance Agent Browser Runtime —— 异步导航协议 / BrowserTask 编排 / 合并探针等待 / 增量快照",
-  "run_number": 117,
+  "run_number": 118,
   "event": "pull_request",
   "status": "completed",
   "conclusion": "failure",
   "workflow_id": 373592785,
-  "check_suite_id": 111855211618,
-  "check_suite_node_id": "CS_kwDOU5hYLs8AAAAaCxcUYg",
-  "url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268210142",
-  "html_url": "https://github.com/Ultra-Guru/apex-kit-browser/actions/runs/41268210142",
+  "check_suite_id": 111856341115,
+  "check_suite_node_id": "CS_kwDOU5hYLs8AAAAaCyhQew",
+  "url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268660155",
+  "html_url": "https://github.com/Ultra-Guru/apex-kit-browser/actions/runs/41268660155",
   "pull_requests": [
     {
       "url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/pulls/30",
@@ -22,7 +22,7 @@
       "number": 30,
       "head": {
         "ref": "feat/agent-browser-runtime",
-        "sha": "21b7cd5d2dbe28a434c42f2cf40a11d737a8a149",
+        "sha": "b8033f8fdcaa8d45e3bf828d642510ecf3ee7176",
         "repo": {
           "id": 1402492974,
           "url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser",
@@ -40,8 +40,8 @@
       }
     }
   ],
-  "created_at": "2026-11-01T03:12:10Z",
-  "updated_at": "2026-11-01T03:14:52Z",
+  "created_at": "2026-11-01T03:18:39Z",
+  "updated_at": "2026-11-01T03:25:50Z",
   "actor": {
     "login": "abysssnare",
     "id": 232612619,
@@ -67,7 +67,7 @@
   "referenced_workflows": [
 
   ],
-  "run_started_at": "2026-11-01T03:12:10Z",
+  "run_started_at": "2026-11-01T03:18:39Z",
   "triggering_actor": {
     "login": "abysssnare",
     "id": 232612619,
@@ -89,19 +89,19 @@
     "user_view_type": "public",
     "site_admin": false
   },
-  "jobs_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268210142/jobs",
-  "logs_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268210142/logs",
-  "check_suite_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/check-suites/111855211618",
-  "artifacts_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268210142/artifacts",
-  "cancel_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268210142/cancel",
-  "rerun_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268210142/rerun",
+  "jobs_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268660155/jobs",
+  "logs_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268660155/logs",
+  "check_suite_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/check-suites/111856341115",
+  "artifacts_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268660155/artifacts",
+  "cancel_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268660155/cancel",
+  "rerun_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/runs/41268660155/rerun",
   "previous_attempt_url": null,
   "workflow_url": "https://api.github.com/repos/Ultra-Guru/apex-kit-browser/actions/workflows/373592785",
   "head_commit": {
-    "id": "21b7cd5d2dbe28a434c42f2cf40a11d737a8a149",
-    "tree_id": "6c7a021e64a3417f84479fedaf7624602b879b9c",
-    "message": "fix: SnapshotCache.Cached internal 化(私有类型泄露到 internal 返回值);TaskExecution 补 launch import;清误提交的本地诊断临时文件",
-    "timestamp": "2026-11-01T03:12:03Z",
+    "id": "b8033f8fdcaa8d45e3bf828d642510ecf3ee7176",
+    "tree_id": "032a379ac869688ea568d139a6a3a8579ea671db",
+    "message": "fix: runTaskBody 尾 try-catch 改显式 return(消编译歧义)",
+    "timestamp": "2026-11-01T03:18:31Z",
     "author": {
       "name": "meng",
       "email": "mjh4117222@gmail.com"
