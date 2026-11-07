@@ -81,7 +81,7 @@ browser-engine :: fun BrowserEngine .removeStorageKey(key: String, session: Bool
 browser-engine :: fun BrowserEngine .requireActiveTab(): BrowserEngine.Tab
 browser-engine :: fun BrowserEngine .runNavigationJob(navigationId: String, tab: BrowserEngine.Tab, url: String, mode: String, waitForSelector: String?, timeoutMs: Long,)
 browser-engine :: fun BrowserEngine .runStorageEnvelope(script: String): JsonObject?
-browser-engine :: fun BrowserEngine .runTask(steps: List<TaskStep>, mode: String =, totalTimeoutMs: Long = 90_000, maxResultChars: Int = 4000,): TaskOutcome
+browser-engine :: fun BrowserEngine .runTask(steps: List<TaskStep>, mode: String =, totalTimeoutMs: Long = 90_000, maxResultChars: Int = 4000, taskIdHint: String? = null,): TaskOutcome
 browser-engine :: fun BrowserEngine .runTaskBody(taskId: String, steps: List<TaskStep>, totalTimeoutMs: Long, maxResultChars: Int,): TaskOutcome
 browser-engine :: fun BrowserEngine .scrollToBoundary(toBottom: Boolean): Boolean
 browser-engine :: fun BrowserEngine .setCookie(url: String, name: String, value: String, path: String =, expiresEpochSeconds: Long? = null,): Boolean
@@ -262,6 +262,7 @@ browser-engine :: val BrowserEngine.WaitOutcome.elapsedMs : Long
 browser-engine :: val BrowserEngine.WaitOutcome.matched : Boolean
 browser-engine :: val BrowserEngine.consoleCapture
 browser-engine :: val BrowserEngine.dialogArbiter
+browser-engine :: val BrowserEngine.taskEvents : kotlinx.coroutines.flow.SharedFlow<com.apex.browser.core.TaskStepEvent>
 browser-engine :: val BrowserEngine.tracer
 browser-engine :: val BrowserTracer.Entry.durationMs : Long
 browser-engine :: val BrowserTracer.Entry.error : String?

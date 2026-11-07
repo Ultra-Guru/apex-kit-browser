@@ -7,6 +7,9 @@ import com.apex.browser.core.NavigationCoordinator
 import com.apex.browser.core.NavigationIds
 import com.apex.browser.core.ReadinessStatus
 import com.apex.browser.core.TaskOutcome
+import com.apex.browser.core.TaskStepEvent
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -49,6 +52,16 @@ internal class EngineRuntime(private val engine: BrowserEngine) {
     val scope = CoroutineScope(
         SupervisorJob() + Dispatchers.Main.immediate +
             CoroutineExceptionHandler { _, e -> Log.w("BrowserEngine.runtime", "runtime task failed", e) }
+    )
+
+    /**
+     * v2.1.2 任务步级事件流（replay 128）：runTaskBody 每步 STARTED/OK/FAILED/
+     * CHECKPOINT 各发一条 —— 宿主流水任务卡与 LiveViewOverlay 详细面板共用
+     * 同一数据源;消费方按 taskId 过滤(replay 保证订阅晚于发射也不丢)。
+     */
+    val taskEvents = MutableSharedFlow<TaskStepEvent>(
+        replay = 128, extraBufferCapacity = 128,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
 
     private val workers = ConcurrentHashMap<Int, TabWorker>()

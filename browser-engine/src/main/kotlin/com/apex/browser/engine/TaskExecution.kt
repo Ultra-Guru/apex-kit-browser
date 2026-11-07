@@ -10,6 +10,8 @@ import com.apex.browser.core.TaskOutcome
 import com.apex.browser.core.TaskScripts
 import com.apex.browser.core.TaskStatus
 import com.apex.browser.core.TaskStep
+import com.apex.browser.core.TaskStepEvent
+import com.apex.browser.core.TaskStepPhase
 import com.apex.browser.core.TaskStepResult
 import com.apex.browser.core.TaskValidator
 import com.apex.browser.core.WaitCondition
@@ -43,6 +45,7 @@ suspend fun BrowserEngine.runTask(
     mode: String = "wait",
     totalTimeoutMs: Long = 90_000,
     maxResultChars: Int = 4000,
+    taskIdHint: String? = null,
 ): TaskOutcome {
     // (0) 预校验：零副作用承诺的第一半——任何错误在第 1 步前整体拒绝
     val validationErrors = TaskValidator.validate(steps)
@@ -64,7 +67,7 @@ suspend fun BrowserEngine.runTask(
 
     val runtime = this.runtime
     if (mode == "background") {
-        val taskId = runtime.nextTaskId()
+        val taskId = taskIdHint?.takeIf { it.isNotBlank() } ?: runtime.nextTaskId()
         val job = runtime.scope.launch {
             val outcome = runTaskBody(taskId, steps, totalTimeoutMs, maxResultChars)
             runtime.getTask(taskId)?.outcome = outcome
@@ -77,7 +80,7 @@ suspend fun BrowserEngine.runTask(
         )
     }
 
-    val taskId = runtime.nextTaskId()
+    val taskId = taskIdHint?.takeIf { it.isNotBlank() } ?: runtime.nextTaskId()
     val outcome = runTaskBody(taskId, steps, totalTimeoutMs, maxResultChars)
     runtime.putTask(EngineRuntime.TaskEntry(taskId, kotlinx.coroutines.Job(), tabId = activeTab()?.id ?: 0, outcome = outcome))
     return outcome
@@ -126,6 +129,7 @@ private suspend fun BrowserEngine.runTaskBody(
                     )
                 }
                 val stepStart = SystemClock.uptimeMillis()
+                runtime.taskEvents.tryEmit(TaskStepEvent(taskId, index, steps.size, step.type.name, TaskStepPhase.STARTED))
                 val exec = executeStep(step, index)
                 val res = when (exec) {
                     is StepExec.Done -> TaskStepResult(
@@ -138,6 +142,10 @@ private suspend fun BrowserEngine.runTaskBody(
                             "检查点：selector「${step.selector}」命中 ${exec.candidates.size} 个元素",
                             docId = exec.docId, elapsedMs = SystemClock.uptimeMillis() - stepStart,
                         )
+                        runtime.taskEvents.tryEmit(
+                            TaskStepEvent(taskId, index, steps.size, step.type.name, TaskStepPhase.CHECKPOINT,
+                                detail = "selector 多命中 ${exec.candidates.size} 个", timestampMs = System.currentTimeMillis())
+                        )
                         return@withTimeout buildOutcome(
                             TaskStatus.CHECKPOINT,
                             checkpoint = TaskCheckpoint(
@@ -148,6 +156,13 @@ private suspend fun BrowserEngine.runTaskBody(
                     }
                 }
                 stepResults += res
+                runtime.taskEvents.tryEmit(
+                    TaskStepEvent(
+                        taskId, index, steps.size, step.type.name,
+                        if (res.ok) TaskStepPhase.OK else TaskStepPhase.FAILED,
+                        detail = res.detail.take(160), timestampMs = System.currentTimeMillis(),
+                    )
+                )
                 res.docId?.let { finalDocId = it }
                 if (!res.ok) {
                     return@withTimeout buildOutcome(

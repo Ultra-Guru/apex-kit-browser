@@ -202,6 +202,13 @@ class BrowserEngine private constructor(
     internal val runtime: EngineRuntime by lazy { EngineRuntime(this) }
 
     /**
+     * v2.1.2 任务步级事件流（公开只读面）：BrowserTask 的流水任务卡与
+     * 悬浮详细面板按 taskId 订阅消费;replay 128,订阅晚于发射不丢事件。
+     */
+    val taskEvents: kotlinx.coroutines.flow.SharedFlow<com.apex.browser.core.TaskStepEvent>
+        get() = runtime.taskEvents
+
+    /**
      * JS 弹窗仲裁器（v2.0.0）：alert/confirm/prompt 的三模式处置
      * （AUTO_CONFIRM 默认 = v1.x 行为零漂移；AUTO_DISMISS；MANUAL + respond +
      * 15s 超时兼底）。Agent 控制面见 [DialogArbiter.pendingDialogs] / [respond]，

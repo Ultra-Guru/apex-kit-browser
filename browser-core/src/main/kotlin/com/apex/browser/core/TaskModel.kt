@@ -61,6 +61,20 @@ data class TaskStepResult(
     val elapsedMs: Long = 0,
 )
 
+/** 步级事件阶段（taskEvents 数据源；流水任务卡与悬浮面板共用）。 */
+enum class TaskStepPhase { STARTED, OK, FAILED, CHECKPOINT }
+
+/** 任务步级事件：EngineRuntime.taskEvents(replay 128) 发出,消费方按 taskId 过滤。 */
+data class TaskStepEvent(
+    val taskId: String,
+    val stepIndex: Int,
+    val totalSteps: Int,
+    val type: String,
+    val phase: TaskStepPhase,
+    val detail: String = "",
+    val timestampMs: Long = 0,
+)
+
 /** 任务状态（评审 P0 检查点：CHECKPOINT 是一等状态，不是失败）。 */
 enum class TaskStatus { QUEUED, RUNNING, CHECKPOINT, COMPLETED, FAILED, CANCELLED, TIMEOUT }
 
