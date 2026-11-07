@@ -91,9 +91,9 @@ if (file("../apex-kit-browser").isDirectory) {
 
 ```kotlin
 dependencies {
-    implementation("com.apex.browser:browser-core:2.1.1")
-    implementation("com.apex.browser:browser-engine:2.1.1")
-    implementation("com.apex.browser:browser-chrome:2.1.1")
+    implementation("com.apex.browser:browser-core:2.1.2")
+    implementation("com.apex.browser:browser-engine:2.1.2")
+    implementation("com.apex.browser:browser-chrome:2.1.2")
 }
 ```
 

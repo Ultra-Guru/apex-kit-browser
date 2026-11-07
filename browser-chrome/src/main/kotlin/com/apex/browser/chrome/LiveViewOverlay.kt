@@ -22,6 +22,9 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import com.apex.browser.engine.BrowserEngine
+import com.apex.browser.engine.activeDocId
+import com.apex.browser.engine.cancelTask
+import com.apex.browser.engine.docEvents
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -149,6 +152,7 @@ class LiveViewOverlay private constructor(
     // v2.1.2 面板②导航行/③事件尾流/④取消任务
     @Volatile private var lastTaskId: String? = null
     @Volatile private var lastEventSeq: Long = 0
+    @Volatile private var lastPanelDoc: String? = null
     @Volatile private var docLine: String = ""
     private val docTail = java.util.ArrayDeque<String>()
     @Volatile private var cancelButton: TextView? = null
@@ -718,6 +722,12 @@ class LiveViewOverlay private constructor(
         // v2.1.2 面板②导航行 + ③事件尾流:docId/状态 + 增量 DocEvent(轻量,同轮询节拍)
         val doc = engine.activeDocId()
         docLine = "doc: ${doc ?: "-"} · ${engine.currentState.name.lowercase()}"
+        // v2.1.2 细节修复:文档切换即清旧事件尾流(残留旧 doc 事件会误导),新 doc 事件从头增量
+        if (doc != lastPanelDoc) {
+            synchronized(docTail) { docTail.clear() }
+            lastEventSeq = 0
+            lastPanelDoc = doc
+        }
         doc?.let {
             val page = engine.docEvents(it, sinceSeq = lastEventSeq, limit = 8)
             if (!page.evicted) {
