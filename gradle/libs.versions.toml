@@ -4,7 +4,7 @@
 #（AgpVersionCompatibilityRule），宿主升级后本库必须同步，否则下游复合构建
 # 直接解析失败。README 兼容矩阵同步更新。
 kotlin = "2.2.21"
-agp = "8.13.2"
+agp = "9.4.1"
 compose-bom = "2025.11.01"
 coroutines = "1.10.2"
 serialization = "1.11.0"
