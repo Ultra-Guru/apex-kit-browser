@@ -3,7 +3,7 @@
 # Gradle 8.14 / BOM 2025.11.01）—— composite build 要求两侧 AGP 版本严格一致
 #（AgpVersionCompatibilityRule），宿主升级后本库必须同步，否则下游复合构建
 # 直接解析失败。README 兼容矩阵同步更新。
-kotlin = "2.2.21"
+kotlin = "2.4.21"
 agp = "8.13.2"
 compose-bom = "2025.11.01"
 coroutines = "1.10.2"
