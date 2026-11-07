@@ -285,12 +285,13 @@ browser-chrome :: fun JsDialogBookkeeping.pendingCount(): Int
 browser-chrome :: fun JsDialogBookkeeping.resolve(requestId: String, choice: JsDialogChoice, promptValue: String?, routeToAgent: Boolean,)
 browser-chrome :: fun JsDialogBookkeeping.submit(kind: JsDialogKind, originHost: String, message: String, promptDefault: String?, replay: Replay,): String
 browser-chrome :: fun JsDialogHost(gateway: BrowserEngineGateway, config: ChromeConfig = ChromeConfig(),)
-browser-chrome :: fun LiveViewOverlay.LiveViewOverlayFactory.get(context: Context, engine: BrowserEngine): LiveViewOverlay
-browser-chrome :: fun LiveViewOverlay.LiveViewOverlayFactory.reset()
 browser-chrome :: fun LiveViewOverlay.hideByUser()
+browser-chrome :: fun LiveViewOverlay.onActiveTabChanged(webView: WebView?)
 browser-chrome :: fun LiveViewOverlay.onStateChanged(state: BrowserEngine.BrowserSessionState, url: String?, title: String?,)
 browser-chrome :: fun LiveViewOverlay.show()
 browser-chrome :: fun LiveViewOverlay.toggle()
+browser-chrome :: fun LiveViewOverlayFactory.get(context: Context, engine: BrowserEngine): LiveViewOverlay
+browser-chrome :: fun LiveViewOverlayFactory.reset()
 browser-chrome :: fun LiveViewPolicy.resolve(event: LiveViewEvent, mode: LiveViewMode, userDismissed: Boolean,): LiveViewTransition
 browser-chrome :: fun NeonChromeWiring.bindActiveWebView(view: WebView, existingWebViewClient: WebViewClient? = null, existingWebChromeClient: WebChromeClient? = null,)
 browser-chrome :: fun NeonChromeWiring.onFindResult(view: WebView, activeMatchOrdinal: Int, numberOfMatches: Int, isDoneCounting: Boolean)
@@ -368,7 +369,7 @@ browser-chrome :: object ChromeMenuAction.Userscripts : ChromeMenuAction
 browser-chrome :: object EnglishChromeStrings : ChromeStrings
 browser-chrome :: object InAppChromeHostFactory
 browser-chrome :: object InAppHostingArbiter
-browser-chrome :: object LiveViewOverlay.LiveViewOverlayFactory
+browser-chrome :: object LiveViewOverlayFactory
 browser-chrome :: object LiveViewPolicy
 browser-chrome :: object PermissionGate
 browser-chrome :: object SnapshotComposer

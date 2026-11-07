@@ -145,6 +145,13 @@ class LiveViewOverlay private constructor(
     // v2.1.2 任务面板状态(最近 6 条步级事件)与视图引用
     private val taskLines = java.util.ArrayDeque<String>()
     @Volatile private var taskPanelView: TextView? = null
+
+    // v2.1.2 面板②导航行/③事件尾流/④取消任务
+    @Volatile private var lastTaskId: String? = null
+    @Volatile private var lastEventSeq: Long = 0
+    @Volatile private var docLine: String = ""
+    private val docTail = java.util.ArrayDeque<String>()
+    @Volatile private var cancelButton: TextView? = null
     @Volatile private var webViewHost: FrameLayout? = null
     @Volatile private var windowParams: WindowManager.LayoutParams? = null
     @Volatile private var statusDot: View? = null
@@ -179,6 +186,7 @@ class LiveViewOverlay private constructor(
         // v2.1.2 任务面板：订阅步级事件(▶/✓/✗/⏸),维护最近 6 条,窗口重建不重复订阅
         mainScope.launch {
             engine.taskEvents.collect { e ->
+                if (e.phase == com.apex.browser.core.TaskStepPhase.STARTED) lastTaskId = e.taskId
                 val mark = when (e.phase) {
                     com.apex.browser.core.TaskStepPhase.STARTED -> "▶"
                     com.apex.browser.core.TaskStepPhase.OK -> "✓"
@@ -221,13 +229,23 @@ class LiveViewOverlay private constructor(
         mainHandler.postDelayed({ applyTransition(stateEventFor(state)) }, STATE_APPLY_DELAY_MS)
     }
 
-    /** 任务面板渲染:有事件即显,窗口重建后由新 buildWindow 的 taskPanelView 承接。 */
+    /** 任务面板渲染:②导航行+任务步骤+③事件尾流;有内容即显,窗口重建由新 taskPanelView 承接。 */
+    @Volatile private var lastRendered: String = ""
+
     private fun renderTaskPanel() {
         val view = taskPanelView ?: return
-        val text = synchronized(taskLines) { taskLines.joinToString("\n") }
-        if (text.isBlank()) return
+        val steps = synchronized(taskLines) { taskLines.joinToString("\n") }
+        val tail = synchronized(docTail) { docTail.joinToString("\n") }
+        if (steps.isBlank() && docLine.isBlank() && tail.isBlank()) return
+        val full = buildString {
+            if (docLine.isNotBlank()) appendLine(docLine)
+            if (steps.isNotBlank()) { appendLine("任务"); appendLine(steps) }
+            if (tail.isNotBlank()) { appendLine("事件"); appendLine(tail) }
+        }.trimEnd()
+        if (full == lastRendered) return // 500ms 轮询防抖:内容未变不重绘
+        lastRendered = full
         mainHandler.post {
-            view.text = "任务\n$text"
+            view.text = full
             view.visibility = android.view.View.VISIBLE
         }
     }
@@ -450,6 +468,19 @@ class LiveViewOverlay private constructor(
         bar.addView(dot)
         bar.addView(title)
         bar.addView(takeOver)
+        // v2.1.2 面板④:取消当前任务(无在途任务时点击无副作用)
+        val cancelTaskBtn = TextView(appContext).apply {
+            text = "⏹"
+            textSize = 12f
+            setTextColor(COLOR_TEXT_SECONDARY)
+            setPadding(dp(6), 0, dp(6), 0)
+            setOnClickListener {
+                val id = lastTaskId
+                if (id != null) mainScope.launch { engine.cancelTask(id, "cancelled from live panel") }
+            }
+        }
+        cancelButton = cancelTaskBtn
+        bar.addView(cancelTaskBtn)
         bar.addView(close)
         attachBarDrag(bar, params)
 
@@ -684,6 +715,22 @@ class LiveViewOverlay private constructor(
             bar.visibility = if (p >= 100) View.INVISIBLE else View.VISIBLE
         }
         applyStatusColor()
+        // v2.1.2 面板②导航行 + ③事件尾流:docId/状态 + 增量 DocEvent(轻量,同轮询节拍)
+        val doc = engine.activeDocId()
+        docLine = "doc: ${doc ?: "-"} · ${engine.currentState.name.lowercase()}"
+        doc?.let {
+            val page = engine.docEvents(it, sinceSeq = lastEventSeq, limit = 8)
+            if (!page.evicted) {
+                page.events.forEach { e ->
+                    synchronized(docTail) {
+                        docTail.addLast("· ${e.type.name.lowercase()} ${e.detail.take(40)}")
+                        while (docTail.size > 3) docTail.removeFirst()
+                    }
+                }
+                lastEventSeq = page.nextSeq
+            }
+        }
+        renderTaskPanel()
         // v1.6.0 自适应节流：加载中快档（进度条流畅 + 自愈及时），静止慢档省电
         mainHandler.postDelayed(pollRunnable, pollIntervalFor(p))
     }
