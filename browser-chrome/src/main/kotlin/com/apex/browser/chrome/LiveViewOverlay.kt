@@ -141,6 +141,10 @@ class LiveViewOverlay private constructor(
 
     // ───────── 窗口视图树（VISIBLE 期间才有内容，GHOST 仅保测量宿主） ─────────
     @Volatile private var rootView: LinearLayout? = null
+
+    // v2.1.2 任务面板状态(最近 6 条步级事件)与视图引用
+    private val taskLines = java.util.ArrayDeque<String>()
+    @Volatile private var taskPanelView: TextView? = null
     @Volatile private var webViewHost: FrameLayout? = null
     @Volatile private var windowParams: WindowManager.LayoutParams? = null
     @Volatile private var statusDot: View? = null
@@ -171,6 +175,24 @@ class LiveViewOverlay private constructor(
     init {
         engine.addUiCallback(this)
         engine.addActiveTabListener(this)
+
+        // v2.1.2 任务面板：订阅步级事件(▶/✓/✗/⏸),维护最近 6 条,窗口重建不重复订阅
+        mainScope.launch {
+            engine.taskEvents.collect { e ->
+                val mark = when (e.phase) {
+                    com.apex.browser.core.TaskStepPhase.STARTED -> "▶"
+                    com.apex.browser.core.TaskStepPhase.OK -> "✓"
+                    com.apex.browser.core.TaskStepPhase.FAILED -> "✗"
+                    com.apex.browser.core.TaskStepPhase.CHECKPOINT -> "⏸"
+                }
+                val line = "$mark [${e.stepIndex + 1}/${e.totalSteps}] ${e.type} ${e.detail.take(60)}"
+                synchronized(taskLines) {
+                    taskLines.addLast(line)
+                    while (taskLines.size > 6) taskLines.removeFirst()
+                }
+                renderTaskPanel()
+            }
+        }
         InAppHostingArbiter.addListener(arbiterListener)
     }
 
@@ -199,7 +221,19 @@ class LiveViewOverlay private constructor(
         mainHandler.postDelayed({ applyTransition(stateEventFor(state)) }, STATE_APPLY_DELAY_MS)
     }
 
+    /** 任务面板渲染:有事件即显,窗口重建后由新 buildWindow 的 taskPanelView 承接。 */
+    private fun renderTaskPanel() {
+        val view = taskPanelView ?: return
+        val text = synchronized(taskLines) { taskLines.joinToString("\n") }
+        if (text.isBlank()) return
+        mainHandler.post {
+            view.text = "任务\n$text"
+            view.visibility = android.view.View.VISIBLE
+        }
+    }
+
     /** 引擎会话状态 → 实时卡迁移事件（状态回调与仲裁退场重放共用）。 */
+
     private fun stateEventFor(state: BrowserEngine.BrowserSessionState): LiveViewEvent =
         when (state) {
             BrowserEngine.BrowserSessionState.HIDDEN -> LiveViewEvent.STATE_HIDDEN
@@ -460,8 +494,22 @@ class LiveViewOverlay private constructor(
         }
         attachCornerResize(grip, params, screenWidth, screenHeight)
 
+        // v2.1.2 任务面板：默认 GONE,有步级事件即显(最近 6 条)
+        val taskPanel = TextView(appContext).apply {
+            textSize = 11f
+            setTextColor(COLOR_TEXT_SECONDARY)
+            setLineSpacing(dp(1).toFloat(), 1f)
+            maxLines = 7
+            visibility = android.view.View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(dp(8), dp(2), dp(8), dp(2)) }
+        }
+        taskPanelView = taskPanel
+
         root.addView(bar, bar.layoutParams)
         root.addView(progress, progress.layoutParams)
+        root.addView(taskPanel, taskPanel.layoutParams)
         root.addView(host, host.layoutParams)
         host.addView(grip, grip.layoutParams)
 
