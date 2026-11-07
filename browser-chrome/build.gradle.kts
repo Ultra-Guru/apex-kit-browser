@@ -52,14 +52,14 @@ dependencies {
 
 // composite build 依赖替换：宿主 includeBuild 时按 group:name 自动替换远端坐标
 group = "com.apex.browser"
-version = "2.1.1"
+version = "2.1.2"
 
 mavenPublishing {
     // Android 项目用 vanniktech 0.30 自动配置（Empty javadoc + sources + release variant）
     coordinates(
         groupId = "com.apex.browser",
         artifactId = "browser-chrome",
-        version = "2.1.1",
+        version = "2.1.2",
     )
     pom {
         name.set("Apex Kit Browser :: Chrome")
