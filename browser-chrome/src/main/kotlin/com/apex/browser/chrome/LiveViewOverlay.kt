@@ -51,7 +51,7 @@ import kotlinx.coroutines.launch
  * 失真）/ GONE 整窗移除。
  *
  * 与 BrowserOverlay 的分工：WAITING_HUMAN 时全屏接管 chrome 独占 WebView，
- * 本卡退 GHOST；交还（AGENT_DRIVING）后自动回 VISIBLE（除非用户收起过）。
+ * 本卡退 GHOST；交还（AGENT_DRIVING）后保持 GHOST（v2.1.1：不自动弹卡，点球唤出）。
  *
  * v1.5.0 新增：与 [InAppChromeHost]（宿主 App 内嵌浏览器）互斥 —— in-app
  * 承载期间（[InAppHostingArbiter.isInAppHosting]）本卡转 GHOST（页面在 App
