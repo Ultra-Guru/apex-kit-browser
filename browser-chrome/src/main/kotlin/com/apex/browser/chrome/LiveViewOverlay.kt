@@ -221,19 +221,18 @@ class LiveViewOverlay private constructor(
         mainHandler.postDelayed({ applyTransition(stateEventFor(state)) }, STATE_APPLY_DELAY_MS)
     }
 
-    /** 引擎会话状态 → 实时卡迁移事件（状态回调与仲裁退场重放共用）。 */
     /** 任务面板渲染:有事件即显,窗口重建后由新 buildWindow 的 taskPanelView 承接。 */
     private fun renderTaskPanel() {
         val view = taskPanelView ?: return
-        val text = synchronized(taskLines) { taskLines.joinToString("
-") }
+        val text = synchronized(taskLines) { taskLines.joinToString("\n") }
         if (text.isBlank()) return
         mainHandler.post {
-            view.text = "任务
-$text"
+            view.text = "任务\n$text"
             view.visibility = android.view.View.VISIBLE
         }
     }
+
+    /** 引擎会话状态 → 实时卡迁移事件（状态回调与仲裁退场重放共用）。 */
 
     private fun stateEventFor(state: BrowserEngine.BrowserSessionState): LiveViewEvent =
         when (state) {
