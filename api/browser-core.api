@@ -59,6 +59,8 @@ browser-core :: class TaskCheckpoint(val stepIndex: Int, val selector: String, v
 browser-core :: class TaskOutcome(val taskId: String, val status: TaskStatus, val steps: List<TaskStepResult>, val completedCount: Int, val failedIndex: Int? = null, val stopped: Boolean = false, val finalDocId: String? = null, val checkpoint: TaskCheckpoint? = null, val result: String =, val elapsedMs: Long = 0,)
 browser-core :: class TaskStatus
 browser-core :: class TaskStep(val type: TaskActionType, val url: String =, val selector: String =, val text: String =, val value: String =, val key: String =, val waitMode: String =, val waitValue: String =, val timeoutMs: Long = 0, val extractMode: String =, val disambiguation: Disambiguation = Disambiguation.CHECKPOINT, val expectedDocId: String =, val deltaY: Int = 0, val append: Boolean = false, val pressEnter: Boolean = false,)
+browser-core :: class TaskStepEvent(val taskId: String, val stepIndex: Int, val totalSteps: Int, val type: String, val phase: TaskStepPhase, val detail: String =, val timestampMs: Long = 0,)
+browser-core :: class TaskStepPhase
 browser-core :: class TaskStepResult(val stepIndex: Int, val type: TaskActionType, val ok: Boolean, val detail: String, val docId: String? = null, val elapsedMs: Long = 0,)
 browser-core :: class WaitCondition(val mode: String, val value: String =, val timeoutMs: Long = 10_000, val quietWindowMs: Long = 750,)
 browser-core :: class WebViewNotRespondingException(message: String) : Exception(message)
@@ -453,6 +455,13 @@ browser-core :: val TaskStep.url : String
 browser-core :: val TaskStep.value : String
 browser-core :: val TaskStep.waitMode : String
 browser-core :: val TaskStep.waitValue : String
+browser-core :: val TaskStepEvent.detail : String
+browser-core :: val TaskStepEvent.phase : TaskStepPhase
+browser-core :: val TaskStepEvent.stepIndex : Int
+browser-core :: val TaskStepEvent.taskId : String
+browser-core :: val TaskStepEvent.timestampMs : Long
+browser-core :: val TaskStepEvent.totalSteps : Int
+browser-core :: val TaskStepEvent.type : String
 browser-core :: val TaskStepResult.detail : String
 browser-core :: val TaskStepResult.docId : String?
 browser-core :: val TaskStepResult.elapsedMs : Long
